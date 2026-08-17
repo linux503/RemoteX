@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RemoteX — Fast Remote Desktop</title>
-    <meta name="description" content="无需注册，无需登录。输入设备码即可远程连接。Windows 与 macOS 跨平台远程桌面。" />
+    <meta name="description" content="No account. No setup. Just connect." />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -25,29 +25,35 @@
           RemoteX
         </a>
         <nav>
-          <a href="#shots">Product</a>
-          <a href="#features">Features</a>
-          <a href="#download">Download</a>
+          <a href="#shots" data-i18n="navProduct">Product</a>
+          <a href="#features" data-i18n="navFeatures">Features</a>
+          <a href="#download" data-i18n="navDownload">Download</a>
           <a href="https://github.com/linux503/RemoteX">GitHub</a>
         </nav>
-        <a class="btn tiny" href="#download">Get the app</a>
+        <div class="header-actions">
+          <div class="lang" role="group" aria-label="Language">
+            <button type="button" data-lang="en">EN</button>
+            <button type="button" data-lang="zh">中文</button>
+          </div>
+          <a class="btn tiny" href="#download" data-i18n="getApp">Get the app</a>
+        </div>
       </header>
 
       <section class="hero">
         <div class="hero-copy reveal">
-          <p class="eyebrow"><span></span> v0.2 · Fast Remote Desktop</p>
-          <h1>Open. Copy the code.<br />Connect.</h1>
-          <p class="lead">无需注册，无需登录。红到骨子里的远程桌面：Windows ↔ macOS，输入设备码就能连。</p>
+          <p class="eyebrow"><span></span> <span data-i18n="eyebrow">v0.2 · Fast Remote Desktop</span></p>
+          <h1 data-i18n-html="heroTitle">Open. Copy the code.<br />Connect.</h1>
+          <p class="lead" data-i18n="heroLead">No account, no login. A red remote desktop for Windows and macOS — enter a device code and connect.</p>
           <div class="cta">
-            <a class="btn" href="#download">Download RemoteX</a>
-            <a class="btn secondary" href="#shots">See the product</a>
+            <a class="btn" href="#download" data-i18n="downloadRemoteX">Download RemoteX</a>
+            <a class="btn secondary" href="#shots" data-i18n="seeProduct">See the product</a>
           </div>
-          <p class="note">No account. No setup. Just connect.</p>
+          <p class="note" data-i18n="note">No account. No setup. Just connect.</p>
         </div>
         <div class="hero-visual reveal delay">
           <div class="glow"></div>
           <figure class="phone-frame float">
-            <img src="./shots/home.png" alt="RemoteX home — device ID and temporary password" />
+            <img src="./shots/home.png" alt="" data-i18n-alt="altHome" />
           </figure>
         </div>
       </section>
@@ -55,66 +61,66 @@
 
     <div class="marquee" aria-hidden="true">
       <div class="track">
-        <span>No Account</span><span>P2P First</span><span>36ms</span><span>Windows ↔ macOS</span><span>Device ID</span><span>Unattended</span>
-        <span>No Account</span><span>P2P First</span><span>36ms</span><span>Windows ↔ macOS</span><span>Device ID</span><span>Unattended</span>
+        <span data-i18n="m1">No Account</span><span data-i18n="m2">P2P First</span><span>36ms</span><span data-i18n="m4">Windows ↔ macOS</span><span data-i18n="m5">Device ID</span><span data-i18n="m6">Unattended</span>
+        <span data-i18n="m1">No Account</span><span data-i18n="m2">P2P First</span><span>36ms</span><span data-i18n="m4">Windows ↔ macOS</span><span data-i18n="m5">Device ID</span><span data-i18n="m6">Unattended</span>
       </div>
     </div>
 
     <div class="wrap">
       <section id="shots" class="shots">
         <div class="section-head reveal">
-          <p class="eyebrow">Product</p>
-          <h2>看起来像成品，用起来像便签。</h2>
+          <p class="eyebrow" data-i18n="navProduct">Product</p>
+          <h2 data-i18n="shotsTitle">Looks finished. Feels like a note.</h2>
         </div>
         <div class="shot-grid">
           <figure class="shot reveal">
-            <img src="./shots/home.png" alt="Home screen with device ID" />
+            <img src="./shots/home.png" alt="" data-i18n-alt="altHome" />
             <figcaption>
-              <strong>Home</strong>
-              <span>设备码 + 临时密码，打开就知道怎么用。</span>
+              <strong data-i18n="shotHome">Home</strong>
+              <span data-i18n="shotHomeDesc">Device ID + temporary password. You know how to use it in 3 seconds.</span>
             </figcaption>
           </figure>
           <figure class="shot reveal delay">
-            <img src="./shots/connecting.png" alt="Connecting overlay" />
+            <img src="./shots/connecting.png" alt="" data-i18n-alt="altConnecting" />
             <figcaption>
-              <strong>Handshake</strong>
-              <span>寻找设备、加密握手、P2P，一步一步亮起来。</span>
+              <strong data-i18n="shotHandshake">Handshake</strong>
+              <span data-i18n="shotHandshakeDesc">Find device, secure handshake, P2P — each step lights up.</span>
             </figcaption>
           </figure>
           <figure class="shot wide reveal">
-            <img src="./shots/session.png" alt="Remote session with latency and speed" />
+            <img src="./shots/session.png" alt="" data-i18n-alt="altSession" />
             <figcaption>
-              <strong>Session</strong>
-              <span>延迟、下载、上传、Direct P2P，连上就能看见。</span>
+              <strong data-i18n="shotSession">Session</strong>
+              <span data-i18n="shotSessionDesc">Latency, download, upload, Direct P2P — visible the moment you connect.</span>
             </figcaption>
           </figure>
           <figure class="shot reveal delay">
-            <img src="./shots/incoming.png" alt="Incoming connection request" />
+            <img src="./shots/incoming.png" alt="" data-i18n-alt="altIncoming" />
             <figcaption>
-              <strong>Confirm</strong>
-              <span>对方要控制这台电脑时，先接受，再开始。</span>
+              <strong data-i18n="shotConfirm">Confirm</strong>
+              <span data-i18n="shotConfirmDesc">When someone wants to control this computer, accept first.</span>
             </figcaption>
           </figure>
         </div>
       </section>
 
       <section id="features" class="bento">
-        <article class="reveal"><h3>No Account</h3><p>没有登录页。ID 和密码就是全部。</p></article>
-        <article class="reveal delay"><h3>Cross-platform</h3><p>Windows 和 macOS 互相远程，同一套红色界面。</p></article>
-        <article class="reveal"><h3>Live stats</h3><p>连接后显示延迟和速度，P2P 还是 Relay 一眼能看出来。</p></article>
-        <article class="reveal delay"><h3>3 seconds</h3><p>一个窗口解决 80% 操作。复制，连接，完成。</p></article>
+        <article class="reveal"><h3 data-i18n="f1t">No Account</h3><p data-i18n="f1d">No login page. ID and password are everything.</p></article>
+        <article class="reveal delay"><h3 data-i18n="f2t">Cross-platform</h3><p data-i18n="f2d">Windows and macOS control each other, same red UI.</p></article>
+        <article class="reveal"><h3 data-i18n="f3t">Live stats</h3><p data-i18n="f3d">See latency and speed. P2P or Relay is obvious.</p></article>
+        <article class="reveal delay"><h3 data-i18n="f4t">3 seconds</h3><p data-i18n="f4d">One window covers 80% of actions. Copy, connect, done.</p></article>
       </section>
 
       <section id="download" class="downloads">
         <div class="section-head reveal">
-          <p class="eyebrow">Download</p>
-          <h2>选你的系统，直接安装。</h2>
+          <p class="eyebrow" data-i18n="navDownload">Download</p>
+          <h2 data-i18n="dlTitle">Pick your system and install.</h2>
         </div>
         <div class="dl-grid">
           <article class="card reveal">
             <p class="os">macOS</p>
-            <h3>Download for Mac</h3>
-            <p>Apple Silicon 与 Intel。安装后打开即可获得设备码。</p>
+            <h3 data-i18n="dlMacTitle">Download for Mac</h3>
+            <p data-i18n="dlMacDesc">Apple Silicon and Intel. Open the app to get a device code.</p>
             <div class="cta">
               <a class="btn" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_aarch64.dmg">Apple Silicon</a>
               <a class="btn secondary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_x64.dmg">Intel</a>
@@ -122,11 +128,11 @@
           </article>
           <article class="card reveal delay">
             <p class="os">Windows</p>
-            <h3>Download for Windows</h3>
-            <p>Windows 10 / 11。和 Mac 同一套界面，跨平台互相控制。</p>
+            <h3 data-i18n="dlWinTitle">Download for Windows</h3>
+            <p data-i18n="dlWinDesc">Windows 10 / 11. Same UI as Mac, cross-platform control.</p>
             <div class="cta">
-              <a class="btn" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_x64-setup.exe">Windows Installer</a>
-              <a class="btn secondary" href="https://github.com/linux503/RemoteX/releases/latest">All releases</a>
+              <a class="btn" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_x64-setup.exe" data-i18n="dlWinBtn">Windows Installer</a>
+              <a class="btn secondary" href="https://github.com/linux503/RemoteX/releases/latest" data-i18n="dlAll">All releases</a>
             </div>
           </article>
         </div>
@@ -138,12 +144,13 @@
       </footer>
     </div>
 
+    <script src="./i18n.js"></script>
     <script>
       const io = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("in"); });
       }, { threshold: 0.12 });
       document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
-      document.querySelectorAll(".reveal").forEach((el, i) => {
+      document.querySelectorAll(".reveal").forEach((el) => {
         if (el.getBoundingClientRect().top < innerHeight) el.classList.add("in");
       });
       window.addEventListener("pointermove", (e) => {
