@@ -1,0 +1,233 @@
+:root {
+  --bg: #fff5f7;
+  --bg2: #ffe8ec;
+  --text: #3d2a2e;
+  --muted: #8a7076;
+  --accent: #f07185;
+  --accent-soft: #fde8ec;
+  --line: rgba(240, 113, 133, 0.2);
+  --shadow: 0 16px 40px rgba(240, 113, 133, 0.14);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  font-family: Inter, "Noto Sans SC", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Portrait promo — 880×1320 @2x */
+body[data-page="card"] {
+  width: 880px;
+  height: 1320px;
+  overflow: hidden;
+}
+
+.promo {
+  position: relative;
+  width: 880px;
+  height: 1320px;
+  padding: 48px 44px 40px;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 28px;
+  background:
+    radial-gradient(520px 320px at 80% 0%, rgba(255, 214, 222, 0.9), transparent 60%),
+    radial-gradient(420px 280px at 0% 100%, rgba(255, 232, 236, 0.8), transparent 55%),
+    linear-gradient(165deg, #fffbfb 0%, var(--bg) 45%, #fff0f3 100%);
+  color: var(--text);
+}
+
+.promo-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.promo-head img { width: 36px; height: 36px; border-radius: 9px; box-shadow: 0 6px 16px rgba(240, 113, 133, 0.22); }
+.promo-brand { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
+.promo-badge {
+  margin-left: auto;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.promo-copy { display: grid; gap: 10px; }
+.promo-title {
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.promo-sub {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--muted);
+  line-height: 1.45;
+}
+html[lang="zh-CN"] .promo-title { font-family: "Noto Sans SC", sans-serif; letter-spacing: -0.02em; }
+html[lang="zh-CN"] .promo-sub { font-family: "Noto Sans SC", sans-serif; }
+
+.promo-window {
+  align-self: center;
+  justify-self: center;
+  width: 100%;
+  max-width: 720px;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.promo-window img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.promo-tags {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.promo-tags span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 400;
+  text-align: center;
+  line-height: 1.25;
+}
+html[lang="zh-CN"] .promo-tags span { font-size: 17px; }
+
+/* Wide session promo — 1920×1080 @2x */
+.promo.wide {
+  width: 1920px;
+  height: 1080px;
+  padding: 56px 64px;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 1fr 1.05fr;
+  grid-template-areas:
+    "head head"
+    "copy window"
+    "tags tags";
+  gap: 36px 48px;
+}
+.promo.wide .promo-head { grid-area: head; }
+.promo.wide .promo-copy {
+  grid-area: copy;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding-right: 16px;
+}
+.promo.wide .promo-title { font-size: 56px; }
+.promo.wide .promo-sub { font-size: 28px; max-width: 14em; }
+.promo.wide .promo-window {
+  grid-area: window;
+  align-self: center;
+  max-width: none;
+  border-radius: 18px;
+}
+.promo.wide .promo-tags {
+  grid-area: tags;
+  max-width: 720px;
+}
+
+body[data-page="card"] .promo.wide {
+  width: 1920px;
+  height: 1080px;
+}
+
+/* OG — 1200×630 @2x → capture at 2400×1260 or 1200×630 */
+body[data-page="og"] {
+  width: 1200px;
+  height: 630px;
+  overflow: hidden;
+}
+
+.og {
+  width: 1200px;
+  height: 630px;
+  padding: 44px 48px;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 32px;
+  align-items: center;
+  background:
+    radial-gradient(480px 280px at 100% 0%, rgba(255, 214, 222, 0.85), transparent 58%),
+    linear-gradient(135deg, #fffbfb 0%, var(--bg) 50%, #fff0f3 100%);
+  color: var(--text);
+}
+.og-copy { display: grid; gap: 14px; }
+.og-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.og-head img { width: 32px; height: 32px; border-radius: 8px; }
+.og-brand { font-size: 18px; font-weight: 500; }
+.og-eyebrow {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.og-title {
+  font-size: 42px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+}
+.og-lead {
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--muted);
+  line-height: 1.5;
+}
+html[lang="zh-CN"] .og-title,
+html[lang="zh-CN"] .og-lead { font-family: "Noto Sans SC", sans-serif; }
+.og-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.og-tags span {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.og-visual {
+  justify-self: end;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.og-visual img { display: block; width: 100%; }

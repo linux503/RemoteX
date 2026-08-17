@@ -170,6 +170,12 @@ function applyLang(lang) {
     const key = el.getAttribute("data-i18n-alt");
     if (dict[key]) el.setAttribute("alt", dict[key]);
   });
+  document.querySelectorAll("[data-i18n-src]").forEach((el) => {
+    const key = el.getAttribute("data-i18n-src");
+    if (key) el.src = `./shots/${lang}/${key}.png`;
+  });
+  setMeta('meta[property="og:image"]', "content", `${SITE}og-${lang}.png`);
+  setMeta('meta[name="twitter:image"]', "content", `${SITE}og-${lang}.png`);
   document.querySelectorAll(".lang button").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-lang") === lang);
   });
