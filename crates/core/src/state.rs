@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, watch, Mutex};
 
 use crate::identity::{data_dir, format_password, DeviceIdentity};
 use crate::lan::{self, LanDiscovery, NearbyDevice};
@@ -98,8 +98,8 @@ pub struct AppState {
     session_role: Option<SessionRole>,
     media: Option<MediaHandle>,
     host_screen: Arc<Mutex<(u32, u32)>>,
-    frame_tx: mpsc::Sender<RemoteFrame>,
-    latest_frame: Arc<std::sync::Mutex<Option<RemoteFrame>>>,
+    frame_tx: watch::Sender<Option<RemoteFrame>>,
+    frame_rx: watch::Receiver<Option<RemoteFrame>>,
 }
 
 impl AppState {
@@ -111,11 +111,10 @@ impl AppState {
         let recents = RecentsStore::load(&dir)?;
         let passwords = PasswordVault::load(&dir).unwrap_or_else(|_| PasswordVault::new());
 
-        let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(64);
+        let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(8);
         let (in_tx, mut in_rx) = mpsc::channel::<ServerMsg>(64);
-        let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(64);
-        let (frame_tx, mut frame_rx) = mpsc::channel::<RemoteFrame>(32);
-        let latest_frame = Arc::new(std::sync::Mutex::new(None));
+        let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(32);
+        let (frame_tx, frame_rx) = watch::channel(None::<RemoteFrame>);
 
         let register = ClientMsg::register(&DeviceInfo {
             id: identity.device_id.clone(),
@@ -144,7 +143,7 @@ impl AppState {
             media: None,
             host_screen: Arc::new(Mutex::new(media::primary_screen_size())),
             frame_tx: frame_tx.clone(),
-            latest_frame: latest_frame.clone(),
+            frame_rx: frame_rx.clone(),
         }));
 
         let client = SignalingClient::new(settings.signaling_url.clone());
@@ -184,19 +183,15 @@ impl AppState {
         let snapshot_events = evt_tx.clone();
         tokio::spawn(async move {
             while let Some(msg) = in_rx.recv().await {
+                let skip_snap = matches!(&msg, ServerMsg::Signal { .. });
                 let mut guard = loop_state.lock().await;
                 guard.handle_server(msg).await;
+                if skip_snap {
+                    continue;
+                }
                 let snap = guard.snapshot_async().await;
+                drop(guard);
                 let _ = snapshot_events.send(AppEvent::Snapshot(snap)).await;
-            }
-        });
-
-        let frame_events = evt_tx.clone();
-        let latest = latest_frame.clone();
-        tokio::spawn(async move {
-            while let Some(frame) = frame_rx.recv().await {
-                *latest.lock().unwrap() = Some(frame.clone());
-                let _ = frame_events.send(AppEvent::Frame(frame)).await;
             }
         });
 
@@ -230,11 +225,11 @@ impl AppState {
     }
 
     pub fn latest_frame(&self) -> Option<RemoteFrame> {
-        self.latest_frame.lock().unwrap().clone()
+        self.frame_rx.borrow().clone()
     }
 
     fn clear_frame(&mut self) {
-        *self.latest_frame.lock().unwrap() = None;
+        let _ = self.frame_tx.send(None);
     }
 
     pub async fn snapshot_async(&self) -> Snapshot {

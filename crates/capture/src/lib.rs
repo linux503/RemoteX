@@ -66,6 +66,19 @@ pub fn list_displays() -> Result<Vec<DisplayInfo>, CaptureError> {
 }
 
 pub fn capture_primary_jpeg(max_width: u32, quality: u8) -> Result<FrameJpeg, CaptureError> {
+    match capture_xcap(max_width, quality) {
+        Ok(frame) => Ok(frame),
+        Err(err) => {
+            #[cfg(target_os = "macos")]
+            if let Ok(frame) = capture_screencapture_macos(max_width, quality) {
+                return Ok(frame);
+            }
+            Err(err)
+        }
+    }
+}
+
+fn capture_xcap(max_width: u32, quality: u8) -> Result<FrameJpeg, CaptureError> {
     let monitors = Monitor::all()?;
     let monitor = monitors
         .iter()
@@ -73,7 +86,11 @@ pub fn capture_primary_jpeg(max_width: u32, quality: u8) -> Result<FrameJpeg, Ca
         .or(monitors.first())
         .ok_or_else(|| CaptureError::Message("No display found".into()))?;
 
-    let mut image = monitor.capture_image()?;
+    let image = monitor.capture_image()?;
+    encode_scaled(image, max_width, quality)
+}
+
+fn encode_scaled(mut image: RgbaImage, max_width: u32, quality: u8) -> Result<FrameJpeg, CaptureError> {
     let (mut width, mut height) = (image.width(), image.height());
 
     if max_width > 0 && width > max_width {
@@ -89,6 +106,33 @@ pub fn capture_primary_jpeg(max_width: u32, quality: u8) -> Result<FrameJpeg, Ca
         height,
         bytes,
     })
+}
+
+#[cfg(target_os = "macos")]
+fn capture_screencapture_macos(max_width: u32, quality: u8) -> Result<FrameJpeg, CaptureError> {
+    let path = std::env::temp_dir().join(format!("remotex-frame-{}.jpg", std::process::id()));
+    let status = std::process::Command::new("/usr/sbin/screencapture")
+        .args(["-x", "-C", "-t", "jpg", path.to_str().unwrap_or("")])
+        .status()
+        .map_err(|err| CaptureError::Message(err.to_string()))?;
+    if !status.success() {
+        return Err(CaptureError::Message("screencapture failed".into()));
+    }
+    let bytes = std::fs::read(&path).map_err(|err| CaptureError::Message(err.to_string()))?;
+    let _ = std::fs::remove_file(&path);
+    let image = image::load_from_memory(&bytes)
+        .map_err(|err| CaptureError::Message(err.to_string()))?
+        .to_rgba8();
+    encode_scaled(image, max_width, quality)
+}
+
+pub fn quality_max_width(quality: &str) -> u32 {
+    match quality {
+        "smooth" => 960,
+        "high" => 1600,
+        "original" => 1920,
+        _ => 1280,
+    }
 }
 
 fn encode_jpeg(image: &RgbaImage, quality: u8) -> Result<Vec<u8>, CaptureError> {
@@ -107,15 +151,6 @@ fn encode_jpeg(image: &RgbaImage, quality: u8) -> Result<Vec<u8>, CaptureError> 
         )
         .map_err(|err| CaptureError::Message(err.to_string()))?;
     Ok(out)
-}
-
-pub fn quality_max_width(quality: &str) -> u32 {
-    match quality {
-        "smooth" => 1280,
-        "high" => 2560,
-        "original" => 0,
-        _ => 1600,
-    }
 }
 
 pub fn quality_label(quality: &Quality) -> &'static str {

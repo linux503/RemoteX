@@ -1,7 +1,8 @@
 use futures_util::{SinkExt, StreamExt};
 use protocol::{ClientMsg, ServerMsg};
 use tokio::sync::mpsc;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{connect_async_with_config, tungstenite::Message};
+use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tracing::{info, warn};
 
 use crate::{Error, Result};
@@ -45,7 +46,10 @@ impl SignalingClient {
         let url = self.url.clone();
         let _parsed = url::Url::parse(&url)
             .map_err(|e| Error::Message(format!("invalid signaling url: {e}")))?;
-        let (ws, _) = connect_async(url).await?;
+        let config = WebSocketConfig::default()
+            .max_message_size(Some(16 * 1024 * 1024))
+            .max_frame_size(Some(16 * 1024 * 1024));
+        let (ws, _) = connect_async_with_config(url, Some(config), false).await?;
         let (mut sink, mut stream) = ws.split();
         info!("connected to signaling {}", self.url);
         let json = serde_json::to_string(register)?;

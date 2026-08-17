@@ -91,7 +91,9 @@ async fn health(State(hub): State<Hub>) -> Json<Health> {
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, State(hub): State<Hub>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, hub))
+    ws.max_message_size(16 * 1024 * 1024)
+        .max_frame_size(16 * 1024 * 1024)
+        .on_upgrade(move |socket| handle_socket(socket, hub))
 }
 
 async fn handle_socket(socket: WebSocket, hub: Hub) {

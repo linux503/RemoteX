@@ -117,10 +117,12 @@ function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) 
   useEffect(() => {
     if (!isTauri()) return;
     const timer = window.setInterval(() => {
-      void invoke<{ data: string } | null>("latest_frame").then((frame) => {
-        if (frame?.data) applyFrame(frame.data);
-      });
-    }, 120);
+      void invoke<{ data: string } | null>("latest_frame")
+        .then((frame) => {
+          if (frame?.data) applyFrame(frame.data);
+        })
+        .catch(() => {});
+    }, 80);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -463,7 +465,6 @@ export default function App() {
         <Titlebar
           onSettings={() => setView("settings")}
           compact
-          subtitle={`${snap.session.peer_name} · ${snap.session.path === "p2p" ? "P2P" : "Relay"}`}
         />
         <div
           className="session-toolbar"
@@ -472,10 +473,7 @@ export default function App() {
             setDisplayOpen(false);
           }}
         >
-          <span className="brand-mini">
-            <Logo size={14} /> RemoteX
-          </span>
-          <span>{snap.session.peer_name}</span>
+          <span className="brand-mini">{snap.session.peer_name}</span>
           <span className="pill">{snap.session.rtt_ms || "—"} ms</span>
           <span className="pill">{formatMbps(snap.session.down_kbps)} ↓</span>
           <span className="toolbar-grow" />
@@ -823,7 +821,6 @@ function Titlebar({
   return (
     <div className="titlebar" data-tauri-drag-region>
       <div className="titlebar-label">
-        <Logo size={16} />
         <span>RemoteX</span>
         {subtitle && <span className="muted">{subtitle}</span>}
       </div>
@@ -844,16 +841,9 @@ function Titlebar({
 }
 
 function Logo({ size }: { size: number }) {
-  const id = `rx-${size}`;
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className="logo" aria-hidden>
-      <defs>
-        <linearGradient id={id} x1="6" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FF3B55" />
-          <stop offset="1" stopColor="#BE123C" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="30" height="30" rx="8" fill={`url(#${id})`} />
+      <rect x="1" y="1" width="30" height="30" rx="8" fill="#DC2626" />
       <g stroke="#fff" strokeWidth="2.7" strokeLinecap="round">
         <path d="M9.2 9.2 L13.05 13.05" />
         <path d="M22.8 9.2 L18.95 13.05" />
