@@ -649,8 +649,8 @@ function Logo({ size }: { size: number }) {
     <svg width={size} height={size} viewBox="0 0 32 32" className="logo" aria-hidden>
       <defs>
         <linearGradient id={id} x1="6" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FF3B55" />
-          <stop offset="1" stopColor="#9B1230" />
+          <stop stopColor="#F88A9A" />
+          <stop offset="1" stopColor="#E85D73" />
         </linearGradient>
       </defs>
       <rect x="1" y="1" width="30" height="30" rx="8" fill={`url(#${id})`} />
