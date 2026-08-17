@@ -107,7 +107,7 @@ impl AppState {
         let identity = DeviceIdentity::load_or_create(&dir)?;
         let settings = AppSettings::load(&dir)?;
         let recents = RecentsStore::load(&dir)?;
-        let passwords = PasswordVault::new();
+        let passwords = PasswordVault::load(&dir).unwrap_or_else(|_| PasswordVault::new());
 
         let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(64);
         let (in_tx, mut in_rx) = mpsc::channel::<ServerMsg>(64);
@@ -230,12 +230,19 @@ impl AppState {
         snap
     }
 
-    pub fn refresh_password(&mut self) {
+    pub fn refresh_password(&mut self) -> Result<()> {
         self.passwords.refresh_temp();
+        self.passwords.save(&self.dir)
     }
 
-    pub fn set_permanent_password(&mut self, password: &str) {
+    pub fn set_temp_password(&mut self, password: &str) -> Result<()> {
+        self.passwords.set_temp(password)?;
+        self.passwords.save(&self.dir)
+    }
+
+    pub fn set_permanent_password(&mut self, password: &str) -> Result<()> {
         self.passwords.set_permanent(password);
+        self.passwords.save(&self.dir)
     }
 
     pub fn update_settings(&mut self, settings: AppSettings) -> Result<()> {

@@ -40,7 +40,19 @@ async fn snapshot(state: State<'_, SharedState>) -> Result<remotex_core::Snapsho
 #[tauri::command]
 async fn refresh_password(app: AppHandle, state: State<'_, SharedState>) -> Result<remotex_core::Snapshot, CommandError> {
     let mut guard = state.lock().await;
-    guard.refresh_password();
+    guard.refresh_password()?;
+    emit_snapshot(&app, &guard).await;
+    Ok(guard.snapshot_async().await)
+}
+
+#[tauri::command]
+async fn set_temp_password(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    password: String,
+) -> Result<remotex_core::Snapshot, CommandError> {
+    let mut guard = state.lock().await;
+    guard.set_temp_password(&password)?;
     emit_snapshot(&app, &guard).await;
     Ok(guard.snapshot_async().await)
 }
@@ -101,7 +113,7 @@ async fn set_permanent_password(
     password: String,
 ) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
-    guard.set_permanent_password(&password);
+    guard.set_permanent_password(&password)?;
     emit_snapshot(&app, &guard).await;
     Ok(())
 }
@@ -277,6 +289,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             snapshot,
             refresh_password,
+            set_temp_password,
             connect,
             accept,
             decline,

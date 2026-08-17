@@ -157,6 +157,7 @@ export default function App() {
   const [passwordStep, setPasswordStep] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
+  const [customPassword, setCustomPassword] = useState("");
   const [qualityOpen, setQualityOpen] = useState(false);
   const [displayOpen, setDisplayOpen] = useState(false);
   const [connectStep, setConnectStep] = useState(0);
@@ -271,6 +272,10 @@ export default function App() {
     if (snap.last_error) setError(translateError(locale, snap.last_error));
   }, [snap.last_error, locale]);
 
+  useEffect(() => {
+    setCustomPassword(snap.temp_password);
+  }, [snap.temp_password]);
+
   const formatIdInput = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 9);
     return digits.replace(/(\d{3})(\d{0,3})(\d{0,3})/, (_, a, b, c) =>
@@ -283,6 +288,33 @@ export default function App() {
     setCopied(label);
     window.setTimeout(() => setCopied(""), 1200);
   };
+
+  const copyBoth = async () => {
+    const text =
+      locale === "zh"
+        ? `设备码：${snap.formatted_id}\n密码：${hidePassword ? snap.temp_password : snap.formatted_password}`
+        : `Device ID: ${snap.formatted_id}\nPassword: ${hidePassword ? snap.temp_password : snap.formatted_password}`;
+    await navigator.clipboard.writeText(text);
+    setCopied("both");
+    window.setTimeout(() => setCopied(""), 1200);
+  };
+
+  const saveCustomPassword = () =>
+    run(async () => {
+      const nextValue = customPassword.trim();
+      if (!nextValue) return;
+      if (isTauri()) {
+        const next = await invoke<Snapshot>("set_temp_password", { password: nextValue });
+        setSnap(next);
+      } else {
+        const normalized = nextValue.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+        setSnap({
+          ...snap,
+          temp_password: normalized,
+          formatted_password: normalized.split("").join(" "),
+        });
+      }
+    });
 
   const showSoon = () => {
     setToast(tr("comingSoon"));
@@ -473,7 +505,10 @@ export default function App() {
           onBack={() => setView("home")}
           onSettings={updateSettings}
           onPermanentPassword={(password) => {
-            if (isTauri()) void invoke("set_permanent_password", { password });
+            if (!isTauri()) return;
+            void run(async () => {
+              await invoke("set_permanent_password", { password });
+            });
           }}
         />
       ) : (
@@ -504,8 +539,12 @@ export default function App() {
             <p className="eyebrow">{tr("thisDevice")}</p>
             <div className="id-row">
               <h2>{snap.formatted_id}</h2>
-              <button className="icon-btn" onClick={() => copy("ID", snap.formatted_id)} title={tr("copyId")}>
-                {copied === "ID" ? "✓" : "⧉"}
+              <button
+                type="button"
+                className={`copy-chip ${copied === "ID" ? "copied" : ""}`}
+                onClick={() => copy("ID", snap.formatted_id)}
+              >
+                {copied === "ID" ? tr("copied") : tr("copyId")}
               </button>
             </div>
             <div className={`status ${snap.ready ? "ready" : "offline"}`}>
@@ -517,10 +556,18 @@ export default function App() {
             <div className="password-row">
               <strong>{hidePassword ? "• • • • • •" : snap.formatted_password}</strong>
               <div className="row-actions">
-                <button className="icon-btn" onClick={() => setHidePassword((v) => !v)}>
+                <button
+                  type="button"
+                  className={`copy-chip tiny ${copied === "password" ? "copied" : ""}`}
+                  onClick={() => copy("password", snap.temp_password)}
+                >
+                  {copied === "password" ? "✓" : tr("copyPassword")}
+                </button>
+                <button type="button" className="icon-btn" onClick={() => setHidePassword((v) => !v)} aria-label="Toggle password">
                   {hidePassword ? "○" : "●"}
                 </button>
                 <button
+                  type="button"
                   className="icon-btn"
                   onClick={() =>
                     run(async () => {
@@ -538,6 +585,32 @@ export default function App() {
                 </button>
               </div>
             </div>
+            <label className="custom-password">
+              <span>{tr("customPassword")}</span>
+              <div className="custom-password-row">
+                <input
+                  value={customPassword}
+                  onChange={(e) => setCustomPassword(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
+                  placeholder={tr("passwordHint")}
+                  maxLength={16}
+                  spellCheck={false}
+                  onKeyDown={(e) => e.key === "Enter" && saveCustomPassword()}
+                  onBlur={() => {
+                    if (customPassword && customPassword !== snap.temp_password) saveCustomPassword();
+                  }}
+                />
+                <button type="button" className="ghost save-password" onClick={saveCustomPassword}>
+                  {tr("savePassword")}
+                </button>
+              </div>
+            </label>
+            <button
+              type="button"
+              className={`copy-all ${copied === "both" ? "copied" : ""}`}
+              onClick={copyBoth}
+            >
+              {copied === "both" ? tr("copied") : tr("copyBoth")}
+            </button>
           </section>
 
           <section className="connect">
@@ -864,6 +937,12 @@ function Settings({
                   placeholder={snap.has_permanent_password ? "••••••••" : tr("setPassword")}
                   onChange={(e) => setPermanent(e.target.value)}
                   onBlur={() => permanent && onPermanentPassword(permanent)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      permanent && onPermanentPassword(permanent);
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
                 />
               </label>
               <Toggle label={tr("askBeforeConnecting")} checked={snap.settings.require_confirm} onChange={(v) => onSettings({ require_confirm: v })} />

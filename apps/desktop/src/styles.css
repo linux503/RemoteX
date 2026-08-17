@@ -326,7 +326,80 @@ button { cursor: pointer; }
   font-weight: 650;
 }
 
-.row-actions { display: flex; gap: 4px; }
+.copy-chip {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  width: auto;
+  height: auto;
+}
+
+.copy-chip.tiny {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.copy-chip.copied,
+.copy-all.copied {
+  color: var(--ready);
+  border-color: rgba(15, 159, 110, 0.28);
+  background: rgba(15, 159, 110, 0.08);
+}
+
+.copy-all {
+  width: 100%;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(248, 138, 154, 0.12), rgba(240, 113, 133, 0.08));
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.custom-password {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.custom-password > span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.custom-password-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.custom-password-row input {
+  flex: 1;
+  min-width: 0;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.save-password {
+  width: auto;
+  padding: 0 12px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.row-actions { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 
 .icon-btn, .ghost, .back {
   border: 0;
