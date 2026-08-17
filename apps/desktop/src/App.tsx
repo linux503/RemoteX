@@ -713,7 +713,7 @@ export default function App() {
             </section>
           )}
 
-          <footer>RemoteX v0.2.2</footer>
+          <footer>RemoteX v0.2.3</footer>
         </main>
       )}
 
@@ -1014,7 +1014,7 @@ function Settings({
               <h2>RemoteX</h2>
               <p>{tr("aboutTagline")}</p>
               <p className="muted">{tr("aboutNote")}</p>
-              <p className="muted">v0.2.2 · macOS / Windows</p>
+              <p className="muted">v0.2.3 · macOS / Windows</p>
               <a className="github-link" href="https://github.com/linux503/RemoteX" target="_blank" rel="noreferrer">
                 GitHub
               </a>

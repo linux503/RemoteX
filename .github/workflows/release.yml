@@ -39,10 +39,12 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
-            ## RemoteX v0.2.2
-            - Real macOS permission checks and setup guide
-            - Wi-Fi auto-discovery (correct LAN IP, not VPN 198.18)
-            - Same Wi-Fi: enter device ID to connect
+            ## RemoteX v0.2.3
+            - Smarter macOS permission guide on home screen and in Settings
+            - Larger settings button and clearer settings sidebar
+            - Tech-style connect flow: secure password modal, progress HUD, incoming request UI
+            - Custom temp password, copy ID/password in one tap
+            - Remote desktop streaming with mouse and keyboard control
             - macOS universal DMG + Windows NSIS installer
           releaseDraft: false
           prerelease: false
