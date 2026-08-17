@@ -39,11 +39,12 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
-            ## RemoteX v0.2.4
-            - Fix remote desktop screen streaming (frame buffer + polling fallback)
-            - Restore deep red app icon
-            - Cleaner home header and professional device OS badges
-            - Download version label on website
+            ## RemoteX v0.2.5
+            - Solid red app icon
+            - Remote screen streaming (latest-frame + capture fallback)
+            - Connected session: full-screen view, auto-hiding toolbar
+            - Speed first / Balanced / Clarity first quality switch
+            - Cleaner home header without duplicate logos
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
