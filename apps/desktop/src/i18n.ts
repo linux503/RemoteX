@@ -9,6 +9,7 @@ const en = {
   copied: "Copied",
   customPassword: "Custom password",
   savePassword: "Save",
+  passwordHint: "4–16 letters or numbers",
   passwordInvalid: "Password must be 4–16 letters or numbers",
   ready: "Ready",
   connectingNetwork: "Connecting to network…",
@@ -136,6 +137,7 @@ const zh: typeof en = {
   customPassword: "自定义密码",
   savePassword: "保存",
   passwordHint: "4–16 位字母或数字",
+  passwordInvalid: "密码需为 4–16 位字母或数字",
   ready: "就绪",
   connectingNetwork: "正在连接网络…",
   tempPassword: "临时密码",
@@ -277,6 +279,9 @@ export function translateError(locale: Locale, message: string): string {
   }
   if (message.toLowerCase().includes("declined") || message.includes("拒绝")) {
     return t(locale, "peerDeclined");
+  }
+  if (message.includes("4–16") || message.includes("letters or numbers")) {
+    return t(locale, "passwordInvalid");
   }
   return message;
 }
