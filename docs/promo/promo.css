@@ -32,8 +32,9 @@ body[data-page="card"] {
   height: 1320px;
   padding: 48px 44px 40px;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 28px;
+  overflow: hidden;
   background:
     radial-gradient(520px 320px at 80% 0%, rgba(255, 214, 222, 0.9), transparent 60%),
     radial-gradient(420px 280px at 0% 100%, rgba(255, 232, 236, 0.8), transparent 55%),
@@ -76,10 +77,11 @@ html[lang="zh-CN"] .promo-title { font-family: "Noto Sans SC", sans-serif; lette
 html[lang="zh-CN"] .promo-sub { font-family: "Noto Sans SC", sans-serif; }
 
 .promo-window {
-  align-self: center;
+  align-self: stretch;
   justify-self: center;
   width: 100%;
   max-width: 720px;
+  min-height: 0;
   border-radius: 22px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -89,7 +91,9 @@ html[lang="zh-CN"] .promo-sub { font-family: "Noto Sans SC", sans-serif; }
 .promo-window img {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain;
+  object-position: top center;
 }
 
 .promo-tags {
@@ -119,7 +123,7 @@ html[lang="zh-CN"] .promo-tags span { font-size: 17px; }
   width: 1920px;
   height: 1080px;
   padding: 56px 64px;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-columns: 1fr 1.05fr;
   grid-template-areas:
     "head head"
@@ -222,12 +226,19 @@ html[lang="zh-CN"] .og-lead { font-family: "Noto Sans SC", sans-serif; }
 }
 .og-visual {
   justify-self: end;
+  align-self: center;
   width: 100%;
-  max-width: 420px;
+  max-width: 380px;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--line);
   background: #fff;
   box-shadow: var(--shadow);
 }
-.og-visual img { display: block; width: 100%; }
+.og-visual img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: top center;
+}

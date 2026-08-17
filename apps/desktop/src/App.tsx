@@ -17,13 +17,17 @@ function latencyTone(ms: number) {
   return "bad";
 }
 
-const mockPermissions = (): PermissionsStatus => ({
-  screen_recording: "denied",
-  accessibility: "denied",
-  input_monitoring: "unknown",
-  platform: "macos",
-  all_granted: false,
-});
+const mockPermissions = (): PermissionsStatus => {
+  const scene = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("scene") : null;
+  const denied = scene === "permissions";
+  return {
+    screen_recording: denied ? "denied" : "granted",
+    accessibility: denied ? "denied" : "granted",
+    input_monitoring: denied ? "unknown" : "granted",
+    platform: "macos",
+    all_granted: !denied,
+  };
+};
 
 async function fetchPermissions(): Promise<PermissionsStatus | null> {
   if (!isTauri()) return mockPermissions();

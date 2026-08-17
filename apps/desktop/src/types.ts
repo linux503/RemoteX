@@ -144,7 +144,7 @@ export const mockSnapshot = (): Snapshot => ({
 });
 
 export function previewSnapshot(scene: string | null): Snapshot {
-  const base = mockSnapshot();
+  const base = { ...mockSnapshot(), recents: [] };
   if (scene === "connecting") {
     return {
       ...base,

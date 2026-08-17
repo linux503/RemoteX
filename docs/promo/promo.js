@@ -110,7 +110,7 @@ function renderCard() {
   document.getElementById("badge").textContent = data.badge;
   document.getElementById("title").textContent = data.title;
   document.getElementById("subtitle").textContent = data.subtitle;
-  document.getElementById("app-shot").src = `../promo/raw/${s}.png`;
+  document.getElementById("app-shot").src = `../shots/${l}/${s}.png`;
 
   const tags = document.getElementById("tags");
   tags.innerHTML = data.tags.map((t) => `<span>${t}</span>`).join("");
@@ -123,7 +123,7 @@ function renderOg() {
   document.getElementById("eyebrow").textContent = data.eyebrow;
   document.getElementById("title").textContent = data.title;
   document.getElementById("lead").textContent = data.lead;
-  document.getElementById("app-shot").src = "../promo/raw/home.png";
+  document.getElementById("app-shot").src = `../shots/${l}/home.png`;
   const tags = document.getElementById("tags");
   tags.innerHTML = data.tags.map((t) => `<span>${t}</span>`).join("");
 }
