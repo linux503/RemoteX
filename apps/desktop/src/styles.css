@@ -1698,6 +1698,39 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
 .desktop-canvas.remote {
   cursor: none;
   outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.remote-canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  background: #000;
+  opacity: 0;
+}
+.remote-canvas.in { opacity: 1; }
+
+.remote-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 6;
+  margin: -1px 0 0 -1px;
+  background:
+    linear-gradient(135deg, #fff 0 42%, transparent 42% 100%),
+    linear-gradient(#111 0 0);
+  background-repeat: no-repeat;
+  background-size: 100% 100%, 7px 11px;
+  background-position: 0 0, 1px 2px;
+  clip-path: polygon(0 0, 0 100%, 28% 72%, 48% 100%, 62% 94%, 42% 64%, 100% 64%);
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.55));
 }
 
 .desktop-canvas.remote img,
@@ -1722,6 +1755,11 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
   display: grid;
   gap: 8px;
   place-items: center;
+}
+.desktop-canvas.remote .desktop-wait,
+.desktop-canvas.remote .preview-desktop {
+  position: absolute;
+  inset: 0;
 }
 .wait-spin {
   width: 28px;

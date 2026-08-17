@@ -20,11 +20,12 @@ impl SignalingClient {
         &self,
         register: ClientMsg,
         mut outgoing: mpsc::Receiver<ClientMsg>,
+        mut priority: mpsc::Receiver<ClientMsg>,
         incoming: mpsc::Sender<ServerMsg>,
     ) -> Result<()> {
         loop {
             match self
-                .connect_once(&register, &mut outgoing, &incoming)
+                .connect_once(&register, &mut outgoing, &mut priority, &incoming)
                 .await
             {
                 Ok(()) => info!("signaling socket closed"),
@@ -41,6 +42,7 @@ impl SignalingClient {
         &self,
         register: &ClientMsg,
         outgoing: &mut mpsc::Receiver<ClientMsg>,
+        priority: &mut mpsc::Receiver<ClientMsg>,
         incoming: &mpsc::Sender<ServerMsg>,
     ) -> Result<()> {
         let url = self.url.clone();
@@ -57,6 +59,12 @@ impl SignalingClient {
 
         loop {
             tokio::select! {
+                biased;
+                msg = priority.recv() => {
+                    let Some(msg) = msg else { continue; };
+                    let json = serde_json::to_string(&msg)?;
+                    sink.send(Message::Text(json.into())).await?;
+                }
                 msg = outgoing.recv() => {
                     let Some(msg) = msg else { return Ok(()); };
                     let json = serde_json::to_string(&msg)?;

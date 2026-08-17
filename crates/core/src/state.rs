@@ -89,8 +89,10 @@ pub struct AppState {
     session: Option<SessionView>,
     incoming: Option<IncomingView>,
     outgoing: mpsc::Sender<ClientMsg>,
+    priority: mpsc::Sender<ClientMsg>,
     incoming_tx: mpsc::Sender<ServerMsg>,
     peer_outgoing: Option<mpsc::Sender<ClientMsg>>,
+    peer_priority: Option<mpsc::Sender<ClientMsg>>,
     lan: Option<Arc<LanDiscovery>>,
     last_error: Option<String>,
     heartbeat_sent: Option<Instant>,
@@ -113,6 +115,7 @@ impl AppState {
         let passwords = PasswordVault::load(&dir).unwrap_or_else(|_| PasswordVault::new());
 
         let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(8);
+        let (prio_tx, prio_rx) = mpsc::channel::<ClientMsg>(64);
         let (in_tx, mut in_rx) = mpsc::channel::<ServerMsg>(64);
         let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(32);
         let (frame_tx, frame_rx) = watch::channel(None::<RemoteFrame>);
@@ -135,8 +138,10 @@ impl AppState {
             session: None,
             incoming: None,
             outgoing: out_tx.clone(),
+            priority: prio_tx.clone(),
             incoming_tx: in_tx.clone(),
             peer_outgoing: None,
+            peer_priority: None,
             lan: None,
             last_error: None,
             heartbeat_sent: None,
@@ -151,7 +156,7 @@ impl AppState {
 
         let client = SignalingClient::new(settings.signaling_url.clone());
         tokio::spawn(async move {
-            let _ = client.run(register, out_rx, in_tx).await;
+            let _ = client.run(register, out_rx, prio_rx, in_tx).await;
         });
 
         if let Ok(lan) = LanDiscovery::start(
@@ -301,6 +306,7 @@ impl AppState {
         };
         if lan::is_own_hub(&url) {
             self.peer_outgoing = None;
+            self.peer_priority = None;
             self.outgoing.send(msg).await.ok();
         } else {
             self.dial_peer_hub(url, msg).await;
@@ -319,7 +325,9 @@ impl AppState {
 
     async fn dial_peer_hub(&mut self, url: String, connect: ClientMsg) {
         self.peer_outgoing = None;
+        self.peer_priority = None;
         let (tx, rx) = mpsc::channel(32);
+        let (prio_tx, prio_rx) = mpsc::channel(64);
         let register = ClientMsg::register(&DeviceInfo {
             id: self.identity.device_id.clone(),
             name: self.identity.name.clone(),
@@ -328,10 +336,11 @@ impl AppState {
         let incoming = self.incoming_tx.clone();
         tokio::spawn(async move {
             let client = SignalingClient::new(url);
-            let _ = client.run(register, rx, incoming).await;
+            let _ = client.run(register, rx, prio_rx, incoming).await;
         });
         let _ = tx.send(connect).await;
         self.peer_outgoing = Some(tx);
+        self.peer_priority = Some(prio_tx);
     }
 
     pub async fn accept(&mut self) {
@@ -374,10 +383,29 @@ impl AppState {
             }
         }
         self.peer_outgoing = None;
+        self.peer_priority = None;
         self.session = None;
         self.incoming = None;
         self.session_role = None;
         self.phase = SessionPhase::Idle;
+    }
+
+    pub fn input_route(
+        &self,
+    ) -> Option<(
+        String,
+        mpsc::Sender<ClientMsg>,
+        Option<mpsc::Sender<ClientMsg>>,
+    )> {
+        let session = self.session.as_ref()?;
+        if self.session_role != Some(SessionRole::Viewer) {
+            return None;
+        }
+        Some((
+            session.session_id.clone(),
+            self.priority.clone(),
+            self.peer_priority.clone(),
+        ))
     }
 
     pub async fn send_input(&self, event: InputEvent) -> Result<()> {
@@ -387,11 +415,13 @@ impl AppState {
         if self.session_role != Some(SessionRole::Viewer) {
             return Ok(());
         }
+        let lossy = matches!(event, InputEvent::MouseMove { .. } | InputEvent::Wheel { .. });
         media::send_input_signal(
             &session.session_id,
             event,
-            &self.outgoing,
-            self.peer_outgoing.as_ref(),
+            &self.priority,
+            self.peer_priority.as_ref(),
+            lossy,
         )
         .await;
         Ok(())
@@ -534,6 +564,7 @@ impl AppState {
                 self.session = None;
                 self.incoming = None;
                 self.peer_outgoing = None;
+                self.peer_priority = None;
                 self.phase = SessionPhase::Idle;
                 self.last_error = Some("The other device declined".into());
             }
@@ -541,6 +572,7 @@ impl AppState {
                 self.stop_media();
                 self.session = None;
                 self.peer_outgoing = None;
+                self.peer_priority = None;
                 self.phase = SessionPhase::Idle;
                 self.last_error = Some(message);
             }
@@ -548,6 +580,7 @@ impl AppState {
                 self.stop_media();
                 self.session = None;
                 self.peer_outgoing = None;
+                self.peer_priority = None;
                 self.phase = SessionPhase::Idle;
                 self.last_error = Some(
                     "Device not found on this Wi-Fi. Open RemoteX on the other computer first."
@@ -559,6 +592,7 @@ impl AppState {
                 self.session = None;
                 self.incoming = None;
                 self.peer_outgoing = None;
+                self.peer_priority = None;
                 self.session_role = None;
                 self.phase = SessionPhase::Idle;
             }
@@ -567,6 +601,7 @@ impl AppState {
                     self.phase = SessionPhase::Idle;
                     self.session = None;
                     self.peer_outgoing = None;
+                self.peer_priority = None;
                     self.last_error = Some(message);
                 }
             }

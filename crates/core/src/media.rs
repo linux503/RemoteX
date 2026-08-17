@@ -185,14 +185,24 @@ pub async fn send_quality_signal(
 pub async fn send_input_signal(
     session_id: &str,
     event: InputEvent,
-    outgoing: &mpsc::Sender<ClientMsg>,
-    peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    priority: &mpsc::Sender<ClientMsg>,
+    peer_priority: Option<&mpsc::Sender<ClientMsg>>,
+    lossy: bool,
 ) {
     let payload = json!({
         "kind": "input",
         "event": event,
     });
-    send_signal(session_id, payload, outgoing, peer_outgoing).await;
+    let msg = ClientMsg::Signal {
+        session_id: session_id.to_string(),
+        data: payload,
+    };
+    let tx = peer_priority.unwrap_or(priority);
+    if lossy {
+        let _ = tx.try_send(msg);
+        return;
+    }
+    let _ = tx.send(msg).await;
 }
 
 async fn send_signal(

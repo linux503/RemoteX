@@ -11,6 +11,7 @@ pub use identity::{DeviceIdentity, format_password};
 pub use lan::NearbyDevice;
 pub use media::RemoteFrame;
 pub use media::SessionRole;
+pub use media::send_input_signal;
 pub use password::PasswordVault;
 pub use recents::{RecentDevice, RecentsStore};
 pub use settings::AppSettings;

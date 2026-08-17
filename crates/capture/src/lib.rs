@@ -95,12 +95,19 @@ fn encode_scaled(mut image: RgbaImage, max_width: u32, quality: u8) -> Result<Fr
 
     if max_width > 0 && width > max_width {
         let scaled_h = ((height as f32) * (max_width as f32) / (width as f32)).round() as u32;
-        image = image::imageops::resize(&image, max_width, scaled_h.max(1), FilterType::Triangle);
+        let filter = if quality >= 80 {
+            FilterType::CatmullRom
+        } else if quality <= 52 {
+            FilterType::Nearest
+        } else {
+            FilterType::Triangle
+        };
+        image = image::imageops::resize(&image, max_width, scaled_h.max(1), filter);
         width = image.width();
         height = image.height();
     }
 
-    let bytes = encode_jpeg(&image, quality.clamp(35, 92))?;
+    let bytes = encode_jpeg(&image, quality.clamp(40, 92))?;
     Ok(FrameJpeg {
         width,
         height,
@@ -133,25 +140,21 @@ pub fn quality_max_width(quality: &str) -> u32 {
 /// (max_width, jpeg_quality, interval_ms)
 pub fn quality_params(quality: &str) -> (u32, u8, u64) {
     match quality {
-        "smooth" => (960, 42, 70),
-        "high" | "original" => (1600, 78, 120),
-        _ => (1280, 58, 90),
+        "smooth" => (1280, 52, 45),
+        "high" | "original" => (1920, 88, 70),
+        _ => (1600, 74, 55),
     }
 }
 
 fn encode_jpeg(image: &RgbaImage, quality: u8) -> Result<Vec<u8>, CaptureError> {
-    let mut rgb = Vec::with_capacity((image.width() * image.height() * 3) as usize);
-    for px in image.pixels() {
-        rgb.extend_from_slice(&[px[0], px[1], px[2]]);
-    }
-    let mut out = Vec::new();
+    let mut out = Vec::with_capacity((image.width() * image.height()) as usize);
     let encoder = jpeg_encoder::Encoder::new(&mut out, quality);
     encoder
         .encode(
-            &rgb,
+            image.as_raw(),
             image.width() as u16,
             image.height() as u16,
-            jpeg_encoder::ColorType::Rgb,
+            jpeg_encoder::ColorType::Rgba,
         )
         .map_err(|err| CaptureError::Message(err.to_string()))?;
     Ok(out)

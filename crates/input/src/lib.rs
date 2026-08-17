@@ -66,6 +66,9 @@ mod platform {
 
     const K_CG_HID_EVENT_TAP: i32 = 0;
     const K_CG_EVENT_MOUSE_MOVED: u32 = 5;
+    const K_CG_EVENT_LEFT_MOUSE_DRAGGED: u32 = 6;
+    const K_CG_EVENT_RIGHT_MOUSE_DRAGGED: u32 = 7;
+    const K_CG_EVENT_OTHER_MOUSE_DRAGGED: u32 = 27;
     const K_CG_EVENT_LEFT_MOUSE_DOWN: u32 = 1;
     const K_CG_EVENT_LEFT_MOUSE_UP: u32 = 2;
     const K_CG_EVENT_RIGHT_MOUSE_DOWN: u32 = 3;
@@ -78,6 +81,14 @@ mod platform {
         CGPoint {
             x: (x.clamp(0.0, 1.0) * screen.0 as f32) as f64,
             y: (y.clamp(0.0, 1.0) * screen.1 as f32) as f64,
+        }
+    }
+
+    fn mouse_drag_type(button: u8) -> u32 {
+        match button {
+            2 => K_CG_EVENT_RIGHT_MOUSE_DRAGGED,
+            1 => K_CG_EVENT_OTHER_MOUSE_DRAGGED,
+            _ => K_CG_EVENT_LEFT_MOUSE_DRAGGED,
         }
     }
 
@@ -205,23 +216,32 @@ mod platform {
     }
 
     pub fn inject(event: &InputEvent, screen: (u32, u32)) {
+        use std::sync::atomic::{AtomicU8, Ordering};
+        static HELD: AtomicU8 = AtomicU8::new(255);
         if screen.0 == 0 || screen.1 == 0 {
             return;
         }
         match event {
             InputEvent::MouseMove { x, y } => {
+                let held = HELD.load(Ordering::Relaxed);
+                let mouse_type = if held == 255 {
+                    K_CG_EVENT_MOUSE_MOVED
+                } else {
+                    mouse_drag_type(held)
+                };
                 let evt = unsafe {
                     CGEventCreateMouseEvent(
                         ptr::null_mut(),
-                        K_CG_EVENT_MOUSE_MOVED,
+                        mouse_type,
                         point(screen, *x, *y),
-                        0,
+                        if held == 2 { 1 } else { 0 },
                     )
                 };
                 post(evt);
             }
             InputEvent::MouseDown { button, x, y } | InputEvent::MouseUp { button, x, y } => {
                 let down = matches!(event, InputEvent::MouseDown { .. });
+                HELD.store(if down { *button } else { 255 }, Ordering::Relaxed);
                 let evt = unsafe {
                     CGEventCreateMouseEvent(
                         ptr::null_mut(),
@@ -268,15 +288,15 @@ mod platform {
     use std::mem::size_of;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP,
-        MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP,
-        MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL,
-        MOUSEINPUT, VIRTUAL_KEY,
+        MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
+        MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
+        MOUSEEVENTF_WHEEL, MOUSEINPUT, VIRTUAL_KEY,
     };
 
-    fn point(screen: (u32, u32), x: f32, y: f32) -> (i32, i32) {
+    fn abs_point(x: f32, y: f32) -> (i32, i32) {
         (
-            (x.clamp(0.0, 1.0) * screen.0 as f32) as i32,
-            (y.clamp(0.0, 1.0) * screen.1 as f32) as i32,
+            (x.clamp(0.0, 1.0) * 65535.0).round() as i32,
+            (y.clamp(0.0, 1.0) * 65535.0).round() as i32,
         )
     }
 
@@ -348,7 +368,7 @@ mod platform {
         }
         match event {
             InputEvent::MouseMove { x, y } => {
-                let (px, py) = point(screen, *x, *y);
+                let (px, py) = abs_point(*x, *y);
                 let input = INPUT {
                     r#type: INPUT_MOUSE,
                     Anonymous: INPUT_0 {
@@ -356,7 +376,7 @@ mod platform {
                             dx: px,
                             dy: py,
                             mouseData: 0,
-                            dwFlags: MOUSEEVENTF_MOVE,
+                            dwFlags: MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
                             time: 0,
                             dwExtraInfo: 0,
                         },
@@ -365,7 +385,7 @@ mod platform {
                 send(&[input]);
             }
             InputEvent::MouseDown { button, x, y } | InputEvent::MouseUp { button, x, y } => {
-                let (px, py) = point(screen, *x, *y);
+                let (px, py) = abs_point(*x, *y);
                 let down = matches!(event, InputEvent::MouseDown { .. });
                 let flags = match (*button, down) {
                     (2, true) => MOUSEEVENTF_RIGHTDOWN,
@@ -382,7 +402,7 @@ mod platform {
                             dx: px,
                             dy: py,
                             mouseData: 0,
-                            dwFlags: flags | MOUSEEVENTF_MOVE,
+                            dwFlags: flags | MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
                             time: 0,
                             dwExtraInfo: 0,
                         },

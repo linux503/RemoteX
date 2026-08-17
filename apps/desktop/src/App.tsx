@@ -85,56 +85,103 @@ function modifierBits(event: { shiftKey: boolean; ctrlKey: boolean; altKey: bool
   return bits;
 }
 
-function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) {
-  const [src, setSrc] = useState<string | null>(null);
+function RemoteDesktop({ locale, isHost, speedFirst }: { locale: Locale; isHost: boolean; speedFirst?: boolean }) {
   const [waiting, setWaiting] = useState(true);
   const stageRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cursorRef = useRef<HTMLDivElement>(null);
+  const lastData = useRef("");
+  const pendingMove = useRef<{ x: number; y: number } | null>(null);
+  const sendingMove = useRef(false);
+  const qualitySmooth = useRef(false);
+  qualitySmooth.current = !!speedFirst;
 
-  const applyFrame = (data: string) => {
-    setWaiting(false);
-    setSrc(`data:image/jpeg;base64,${data}`);
+  const drawFrame = async (data: string) => {
+    if (!data || data === lastData.current) return;
+    lastData.current = data;
+    const canvas = canvasRef.current;
+    const stage = stageRef.current;
+    if (!canvas || !stage) return;
+    try {
+      const raw = atob(data);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "image/jpeg" });
+      const bmp = await createImageBitmap(blob);
+      const cssW = stage.clientWidth;
+      const cssH = stage.clientHeight;
+      const scale = Math.min(cssW / bmp.width, cssH / bmp.height);
+      const w = Math.max(1, Math.round(bmp.width * scale));
+      const h = Math.max(1, Math.round(bmp.height * scale));
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+      }
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = !qualitySmooth.current;
+      ctx.imageSmoothingQuality = qualitySmooth.current ? "low" : "high";
+      ctx.drawImage(bmp, 0, 0, w, h);
+      bmp.close();
+      setWaiting(false);
+    } catch {
+      /* keep last frame */
+    }
   };
-
-  useEffect(() => {
-    if (!isTauri()) return;
-    let unlisten: (() => void) | undefined;
-    import("@tauri-apps/api/event").then(({ listen }) =>
-      listen<{ width: number; height: number; data: string }>("remote-frame", (event) => {
-        if (event.payload.data) applyFrame(event.payload.data);
-      }).then((fn) => {
-        unlisten = fn;
-      }),
-    );
-    return () => unlisten?.();
-  }, []);
 
   useEffect(() => {
     if (!isTauri()) return;
     const timer = window.setInterval(() => {
-      void invoke<{ data: string } | null>("latest_frame")
+      void invoke<{ data: string; width: number; height: number } | null>("latest_frame")
         .then((frame) => {
-          if (frame?.data) applyFrame(frame.data);
+          if (frame?.data) void drawFrame(frame.data);
         })
         .catch(() => {});
-    }, 80);
+    }, 32);
     return () => window.clearInterval(timer);
   }, []);
 
   const norm = (clientX: number, clientY: number) => {
-    const el = stageRef.current;
-    if (!el) return { x: 0, y: 0 };
+    const el = canvasRef.current;
+    if (!el) return null;
     const rect = el.getBoundingClientRect();
-    if (!rect.width || !rect.height) return { x: 0, y: 0 };
-    return {
-      x: (clientX - rect.left) / rect.width,
-      y: (clientY - rect.top) / rect.height,
-    };
+    if (!rect.width || !rect.height) return null;
+    const x = (clientX - rect.left) / rect.width;
+    const y = (clientY - rect.top) / rect.height;
+    if (x < 0 || y < 0 || x > 1 || y > 1) return null;
+    return { x, y };
   };
 
   const sendInput = (event: Record<string, unknown>) => {
-    if (!isTauri()) return;
+    if (!isTauri() || isHost) return;
     void invoke("session_input", { event });
   };
+
+  const flushMove = () => {
+    if (sendingMove.current || !pendingMove.current) return;
+    const p = pendingMove.current;
+    pendingMove.current = null;
+    sendingMove.current = true;
+    void invoke("session_input", { event: { type: "mouse_move", x: p.x, y: p.y } }).finally(() => {
+      sendingMove.current = false;
+      if (pendingMove.current) requestAnimationFrame(flushMove);
+    });
+  };
+
+  const moveCursor = (clientX: number, clientY: number) => {
+    const stage = stageRef.current;
+    const cursor = cursorRef.current;
+    if (!stage || !cursor) return;
+    const rect = stage.getBoundingClientRect();
+    cursor.style.transform = `translate(${clientX - rect.left}px, ${clientY - rect.top}px)`;
+    cursor.style.opacity = "1";
+  };
+
+  const showPreview = previewScene === "session";
 
   return (
     <div className="desktop-stage">
@@ -143,43 +190,54 @@ function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) 
         className="desktop-canvas remote"
         tabIndex={0}
         onContextMenu={(e) => e.preventDefault()}
+        onMouseEnter={() => canvasRef.current?.focus()}
+        onMouseLeave={() => {
+          if (cursorRef.current) cursorRef.current.style.opacity = "0";
+        }}
         onMouseMove={(e) => {
+          moveCursor(e.clientX, e.clientY);
           const p = norm(e.clientX, e.clientY);
-          sendInput({ type: "mouse_move", x: p.x, y: p.y });
+          if (!p) return;
+          pendingMove.current = p;
+          flushMove();
         }}
         onMouseDown={(e) => {
+          e.preventDefault();
+          canvasRef.current?.focus();
           const p = norm(e.clientX, e.clientY);
+          if (!p) return;
           sendInput({ type: "mouse_down", button: e.button, x: p.x, y: p.y });
         }}
         onMouseUp={(e) => {
           const p = norm(e.clientX, e.clientY);
+          if (!p) return;
           sendInput({ type: "mouse_up", button: e.button, x: p.x, y: p.y });
         }}
         onWheel={(e) => {
+          e.preventDefault();
           sendInput({ type: "wheel", dx: e.deltaX, dy: e.deltaY });
         }}
         onKeyDown={(e) => {
+          e.preventDefault();
           if (e.repeat) return;
           sendInput({ type: "key_down", key: e.code, modifiers: modifierBits(e) });
         }}
         onKeyUp={(e) => {
+          e.preventDefault();
           sendInput({ type: "key_up", key: e.code, modifiers: modifierBits(e) });
         }}
       >
-        {src ? (
-          <img className="remote-frame in" src={src} alt="" draggable={false} />
-        ) : previewScene === "session" ? (
-          <PreviewRemoteScreen locale={locale} />
-        ) : (
+        <canvas ref={canvasRef} className={`remote-canvas${waiting ? "" : " in"}`} />
+        <div ref={cursorRef} className="remote-cursor" aria-hidden />
+        {showPreview && waiting && <PreviewRemoteScreen locale={locale} />}
+        {waiting && !showPreview && (
           <div className="desktop-wait">
             <span className="wait-spin" aria-hidden />
             <p>{t(locale, "remoteDesktop")}</p>
             <span>
               {isHost
                 ? t(locale, "sharingScreen")
-                : waiting
-                  ? t(locale, "waitingScreen")
-                  : t(locale, "screenCaptureHint")}
+                : t(locale, "waitingScreen")}
             </span>
           </div>
         )}
@@ -480,7 +538,7 @@ export default function App() {
           onMouseMove={bumpChrome}
           onPointerDown={bumpChrome}
         >
-          <RemoteDesktop locale={locale} isHost={snap.is_host} />
+          <RemoteDesktop locale={locale} isHost={snap.is_host} speedFirst={sessionQuality === "smooth"} />
           <div className={`session-chrome${chromeVisible ? " show" : ""}`}>
             <div className="session-toolbar">
               <div className="session-peer">

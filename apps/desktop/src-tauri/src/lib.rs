@@ -145,7 +145,18 @@ async fn session_input(
     state: State<'_, SharedState>,
     event: InputEvent,
 ) -> Result<(), CommandError> {
-    state.lock().await.send_input(event).await?;
+    let Some((session_id, priority, peer_priority)) = state.lock().await.input_route() else {
+        return Ok(());
+    };
+    let lossy = matches!(event, InputEvent::MouseMove { .. } | InputEvent::Wheel { .. });
+    remotex_core::send_input_signal(
+        &session_id,
+        event,
+        &priority,
+        peer_priority.as_ref(),
+        lossy,
+    )
+    .await;
     Ok(())
 }
 
