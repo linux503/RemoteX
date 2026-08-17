@@ -693,7 +693,7 @@ function Settings({
                       window.setTimeout(() => setCopiedLan(false), 1200);
                     }}
                   >
-                    {copiedLan ? "✓" : snap.lan_url}
+                    {copiedLan ? "✓" : snap.lan_url.replace("ws://", "").replace("/ws", "")}
                   </button>
                 </>
               )}

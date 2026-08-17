@@ -58,22 +58,23 @@ impl LanDiscovery {
             self_id: self_id.clone(),
         });
 
-        let beacon = Packet {
-            v: 1,
-            id: Some(self_id),
-            name: Some(name),
-            os: Some(os_label(&os)),
-            ws: Some(local_ws()),
-            q: None,
-        };
-        let beacon_bytes = serde_json::to_vec(&beacon).unwrap_or_default();
         let send_sock = socket.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(2));
             loop {
                 interval.tick().await;
-                let addr = SocketAddr::from(([255, 255, 255, 255], DEFAULT_DISCOVERY_PORT));
-                let _ = send_sock.send_to(&beacon_bytes, addr).await;
+                let beacon = Packet {
+                    v: 1,
+                    id: Some(self_id.clone()),
+                    name: Some(name.clone()),
+                    os: Some(os_label(&os)),
+                    ws: Some(local_ws()),
+                    q: None,
+                };
+                if let Ok(bytes) = serde_json::to_vec(&beacon) {
+                    let addr = SocketAddr::from(([255, 255, 255, 255], DEFAULT_DISCOVERY_PORT));
+                    let _ = send_sock.send_to(&bytes, addr).await;
+                }
             }
         });
 
@@ -198,16 +199,107 @@ pub fn local_ws() -> String {
 }
 
 pub fn local_lan_ip() -> Option<String> {
+    let Ok(ifaces) = if_addrs::get_if_addrs() else {
+        return fallback_route_ip();
+    };
+    let mut scored: Vec<(i32, String)> = Vec::new();
+    for iface in ifaces {
+        if iface.is_loopback() || skip_iface(&iface.name) {
+            continue;
+        }
+        let std::net::IpAddr::V4(ip) = iface.ip() else {
+            continue;
+        };
+        if !is_wifi_lan_ipv4(ip) {
+            continue;
+        }
+        let octets = ip.octets();
+        let mut score = 10;
+        let name = iface.name.to_lowercase();
+        if name.starts_with("en") || name.contains("wi-fi") || name.contains("wifi") || name.contains("wlan") {
+            score += 50;
+        } else if name.starts_with("eth") || name.starts_with("ethernet") {
+            score += 30;
+        }
+        if octets[0] == 192 && octets[1] == 168 {
+            score += 20;
+        } else if octets[0] == 10 {
+            score += 10;
+        }
+        scored.push((score, ip.to_string()));
+    }
+    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    scored.into_iter().next().map(|(_, ip)| ip).or_else(fallback_route_ip)
+}
+
+fn fallback_route_ip() -> Option<String> {
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:80").ok()?;
     match socket.local_addr().ok()?.ip() {
-        std::net::IpAddr::V4(ip) if !ip.is_loopback() => Some(ip.to_string()),
+        std::net::IpAddr::V4(ip) if is_wifi_lan_ipv4(ip) => Some(ip.to_string()),
         _ => None,
     }
+}
+
+fn skip_iface(name: &str) -> bool {
+    let name = name.to_lowercase();
+    name.starts_with("utun")
+        || name.starts_with("awdl")
+        || name.starts_with("llw")
+        || name.starts_with("bridge")
+        || name.starts_with("ipsec")
+        || name.starts_with("tun")
+        || name.starts_with("tap")
+        || name.starts_with("wg")
+        || name.starts_with("zt")
+        || name.contains("vpn")
+        || name.contains("tailscale")
+        || name.contains("vethernet")
+}
+
+fn is_wifi_lan_ipv4(ip: std::net::Ipv4Addr) -> bool {
+    if ip.is_loopback() || ip.is_link_local() || ip.is_unspecified() || ip.is_multicast() {
+        return false;
+    }
+    let o = ip.octets();
+    // Clash / Surge / RFC 2544 fake subnet — not Wi-Fi
+    if o[0] == 198 && (o[1] == 18 || o[1] == 19) {
+        return false;
+    }
+    // CGNAT (100.64/10), often VPN
+    if o[0] == 100 && (64..128).contains(&o[1]) {
+        return false;
+    }
+    ip.is_private()
+}
+
+pub fn is_fake_vpn_signaling(url: &str) -> bool {
+    url.contains("198.18.") || url.contains("198.19.") || url.contains("169.254.")
 }
 
 pub fn is_own_hub(url: &str) -> bool {
     url.contains("127.0.0.1")
         || url.contains("localhost")
         || local_lan_ip().is_some_and(|ip| url.contains(&ip))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn rejects_clash_tun() {
+        assert!(!is_wifi_lan_ipv4(Ipv4Addr::new(198, 18, 0, 1)));
+        assert!(is_wifi_lan_ipv4(Ipv4Addr::new(192, 168, 1, 18)));
+        assert!(is_fake_vpn_signaling("ws://198.18.0.1:7829/ws"));
+    }
+
+    #[test]
+    fn local_ip_is_real_lan() {
+        if let Some(ip) = local_lan_ip() {
+            assert!(!ip.starts_with("198.18"), "got {ip}");
+            assert!(!ip.starts_with("127."));
+        }
+    }
 }

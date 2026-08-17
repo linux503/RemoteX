@@ -53,7 +53,12 @@ impl AppSettings {
             return Ok(settings);
         }
         let raw = std::fs::read_to_string(path)?;
-        Ok(serde_json::from_str(&raw)?)
+        let mut settings: Self = serde_json::from_str(&raw)?;
+        if crate::lan::is_fake_vpn_signaling(&settings.signaling_url) {
+            settings.signaling_url = default_signaling_url();
+            let _ = settings.save(dir);
+        }
+        Ok(settings)
     }
 
     pub fn save(&self, dir: &Path) -> Result<()> {
