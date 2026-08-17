@@ -136,8 +136,8 @@ fn displays() -> Vec<DisplayInfo> {
 }
 
 #[tauri::command]
-async fn latest_frame(state: State<'_, SharedState>) -> Option<remotex_core::RemoteFrame> {
-    state.lock().await.latest_frame()
+async fn latest_frame(state: State<'_, SharedState>) -> Result<Option<remotex_core::RemoteFrame>, CommandError> {
+    Ok(state.lock().await.latest_frame())
 }
 
 #[tauri::command]
