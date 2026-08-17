@@ -1,0 +1,20 @@
+[package]
+name = "signaling"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "remotex-signaling"
+path = "src/main.rs"
+
+[dependencies]
+protocol.workspace = true
+axum = { version = "0.8", features = ["ws"] }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+futures-util.workspace = true

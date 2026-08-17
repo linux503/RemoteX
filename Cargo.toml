@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/protocol",
+    "crates/core",
+    "crates/capture",
+    "crates/input",
+    "apps/signaling",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+authors = ["RemoteX"]
+repository = "https://github.com/linux503/RemoteX"
+
+[workspace.dependencies]
+protocol = { path = "crates/protocol" }
+core = { path = "crates/core", package = "remotex-core" }
+capture = { path = "crates/capture", package = "remotex-capture" }
+input = { path = "crates/input", package = "remotex-input" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+rand = "0.8"
+futures-util = "0.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sha2 = "0.10"
+hex = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+tokio-tungstenite = "0.26"
+url = "2"
