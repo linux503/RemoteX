@@ -13,21 +13,22 @@
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --bg: #09090d;
-        --text: #f4efe6;
-        --muted: #9b948a;
-        --line: rgba(255,244,230,.08);
-        --accent: #8b7cff;
-        --teal: #2dd4bf;
+        --bg: #12080a;
+        --text: #fff4f2;
+        --muted: #c4a8ab;
+        --line: rgba(255, 90, 110, .14);
+        --accent: #ff3b55;
+        --accent-deep: #9b1230;
+        --ready: #fb7185;
       }
       * { box-sizing: border-box; }
       html, body { margin: 0; background: var(--bg); color: var(--text); font-family: "Instrument Sans", system-ui, sans-serif; }
       a { color: inherit; text-decoration: none; }
       body {
         background:
-          radial-gradient(900px 420px at 10% -10%, rgba(91,77,255,.28), transparent 55%),
-          radial-gradient(800px 380px at 100% 0%, rgba(45,212,191,.16), transparent 50%),
-          #09090d;
+          radial-gradient(900px 460px at 8% -12%, rgba(255, 59, 85, .34), transparent 55%),
+          radial-gradient(720px 380px at 100% 0%, rgba(155, 18, 48, .28), transparent 48%),
+          #12080a;
       }
       .wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
       header {
@@ -36,39 +37,42 @@
         backdrop-filter: blur(16px);
       }
       .brand { display: flex; gap: 10px; align-items: center; font-weight: 700; letter-spacing: -.03em; }
+      .brand img, .brand svg { display: block; }
       nav { display: flex; gap: 22px; color: var(--muted); font-size: 14px; }
-      .hero { padding: 72px 0 40px; display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
-      .eyebrow { color: var(--teal); letter-spacing: .16em; text-transform: uppercase; font-size: 12px; font-weight: 600; }
+      nav a:hover { color: var(--text); }
+      .hero { padding: 64px 0 36px; display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
+      .mark { width: 72px; height: 72px; margin-bottom: 18px; filter: drop-shadow(0 18px 30px rgba(255,59,85,.35)); }
+      .eyebrow { color: var(--accent); letter-spacing: .16em; text-transform: uppercase; font-size: 12px; font-weight: 700; }
       h1 { font-family: "Instrument Serif", serif; font-size: clamp(48px, 7vw, 84px); line-height: .92; margin: 12px 0 18px; font-weight: 400; letter-spacing: -.04em; }
       .lead { font-size: 20px; color: var(--muted); max-width: 520px; }
       .cta { display: flex; gap: 12px; margin: 32px 0 18px; flex-wrap: wrap; }
       .btn {
         display: inline-flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 16px;
-        background: linear-gradient(135deg, #5b4dff, #3f32d6 55%, #0f9f8a);
-        color: white; font-weight: 700; box-shadow: 0 16px 40px rgba(91,77,255,.28);
+        background: linear-gradient(135deg, #ff4d64, #e11d48 48%, #9b1230);
+        color: white; font-weight: 700; box-shadow: 0 16px 40px rgba(225, 29, 72, .38);
       }
-      .btn.secondary { background: rgba(255,255,255,.06); box-shadow: none; border: 1px solid var(--line); }
+      .btn.secondary { background: rgba(255,59,85,.08); box-shadow: none; border: 1px solid var(--line); }
       .note { color: var(--muted); font-size: 13px; }
       .window {
         border-radius: 24px; padding: 18px; border: 1px solid var(--line);
-        background: rgba(18,19,26,.72); box-shadow: 0 40px 80px rgba(0,0,0,.4);
+        background: rgba(28, 10, 14, .78); box-shadow: 0 40px 80px rgba(80, 0, 16, .35);
         backdrop-filter: blur(20px);
       }
       .dots { display: flex; gap: 6px; margin-bottom: 18px; }
-      .dots i { width: 10px; height: 10px; border-radius: 50%; background: #3f3f46; display: block; }
+      .dots i { width: 10px; height: 10px; border-radius: 50%; background: #5a2430; display: block; }
       .id { font-size: 34px; letter-spacing: .08em; font-weight: 700; margin: 8px 0 10px;
-        background: linear-gradient(120deg, #fff 10%, var(--accent)); -webkit-background-clip: text; color: transparent; }
-      .ready { color: var(--teal); font-size: 13px; }
+        background: linear-gradient(120deg, #fff 10%, #ff6b7d); -webkit-background-clip: text; color: transparent; }
+      .ready { color: var(--ready); font-size: 13px; }
       .downloads { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 24px 0 80px; }
       .card {
         border: 1px solid var(--line); border-radius: 24px; padding: 28px;
-        background: rgba(255,255,255,.03);
+        background: rgba(255, 59, 85, .04);
       }
       .card h3 { margin: 0 0 8px; font-size: 22px; }
       .card p { color: var(--muted); margin: 0 0 20px; }
       .os { font-size: 13px; color: var(--accent); letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
       .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding-bottom: 80px; }
-      .features article { padding: 22px; border-radius: 20px; border: 1px solid var(--line); background: rgba(255,255,255,.03); }
+      .features article { padding: 22px; border-radius: 20px; border: 1px solid var(--line); background: rgba(255,59,85,.04); }
       .features h4 { margin: 0 0 8px; }
       .features p { margin: 0; color: var(--muted); font-size: 14px; }
       footer { display: flex; justify-content: space-between; padding: 28px 0 60px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); }
@@ -86,10 +90,7 @@
     <div class="wrap">
       <header>
         <a class="brand" href="./">
-          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-            <rect x="1" y="1" width="30" height="30" rx="8" fill="currentColor" opacity=".12"/>
-            <path d="M9 9 L23 23 M23 9 L9 23" stroke="#8b7cff" stroke-width="2.6" stroke-linecap="round"/>
-          </svg>
+          <img src="./logo.svg" width="28" height="28" alt="" />
           RemoteX
         </a>
         <nav>
@@ -101,6 +102,7 @@
 
       <section class="hero">
         <div>
+          <img class="mark" src="./logo.svg" alt="RemoteX" />
           <p class="eyebrow">v0.2 · Fast Remote Desktop</p>
           <h1>The simplest way to connect two computers.</h1>
           <p class="lead">无需注册，无需登录。打开软件，复制设备码，连接。Windows ↔ macOS，同一套体验。</p>

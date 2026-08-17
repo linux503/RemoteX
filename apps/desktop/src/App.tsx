@@ -467,15 +467,23 @@ function Titlebar({
 }
 
 function Logo({ size }: { size: number }) {
+  const id = `rx-${size}`;
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className="logo" aria-hidden>
-      <rect x="1" y="1" width="30" height="30" rx="8" fill="currentColor" opacity="0.08" />
-      <path
-        d="M9 9 L23 23 M23 9 L9 23"
-        stroke="currentColor"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-      />
+      <defs>
+        <linearGradient id={id} x1="6" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF3B55" />
+          <stop offset="1" stopColor="#9B1230" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="30" height="30" rx="8" fill={`url(#${id})`} />
+      <g stroke="#fff" strokeWidth="2.7" strokeLinecap="round">
+        <path d="M9.2 9.2 L13.05 13.05" />
+        <path d="M22.8 9.2 L18.95 13.05" />
+        <path d="M9.2 22.8 L13.05 18.95" />
+        <path d="M22.8 22.8 L18.95 18.95" />
+      </g>
+      <circle cx="16" cy="16" r="2.15" fill="#fff" />
     </svg>
   );
 }

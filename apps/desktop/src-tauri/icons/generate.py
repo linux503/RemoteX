@@ -44,55 +44,24 @@ def line_dist(px, py, x1, y1, x2, y2):
     return math.hypot(px - (x1 + t * vx), py - (y1 + t * vy))
 
 
-def icon_pixel(x, y, size):
-    p = size * 0.12
-    r = size * 0.22
-    inset = False
-    xx, yy = x + 0.5, y + 0.5
-    if p + r <= xx <= size - p - r or p + r <= yy <= size - p - r:
-        if p <= xx <= size - p and p <= yy <= size - p:
-            inset = True
-    else:
-        corners = [
-            (p + r, p + r),
-            (size - p - r, p + r),
-            (p + r, size - p - r),
-            (size - p - r, size - p - r),
-        ]
-        inset = any(dist(xx, yy, cx, cy) <= r for cx, cy in corners) and (
-            p <= xx <= size - p and p <= yy <= size - p
-        )
-    if not inset:
-        return (0, 0, 0, 0)
-    stroke = size * 0.045
-    pad = size * 0.30
-    on_x = min(
-        line_dist(xx, yy, pad, pad, size - pad, size - pad),
-        line_dist(xx, yy, size - pad, pad, pad, size - pad),
-    ) <= stroke
-    if on_x:
-        return (250, 250, 250, 255)
-    return (17, 17, 19, 255)
-
-
 def tray_pixel(x, y, size):
     xx, yy = x + 0.5, y + 0.5
-    stroke = size * 0.11
-    pad = size * 0.18
-    on_x = min(
-        line_dist(xx, yy, pad, pad, size - pad, size - pad),
-        line_dist(xx, yy, size - pad, pad, pad, size - pad),
-    ) <= stroke
-    if on_x:
-        return (32, 32, 36, 255)
+    cx = cy = size / 2
+    if dist(xx, yy, cx, cy) <= size * 0.13:
+        return (255, 59, 85, 255)
+    stroke = size * 0.09
+    arms = [
+        (size * 0.18, size * 0.18, cx - size * 0.12, cy - size * 0.12),
+        (size * 0.82, size * 0.18, cx + size * 0.12, cy - size * 0.12),
+        (size * 0.18, size * 0.82, cx - size * 0.12, cy + size * 0.12),
+        (size * 0.82, size * 0.82, cx + size * 0.12, cy + size * 0.12),
+    ]
+    if any(line_dist(xx, yy, *arm) <= stroke for arm in arms):
+        return (255, 59, 85, 255)
     return (0, 0, 0, 0)
 
 
 root = Path("/Users/a503/Downloads/Mac-soft/RemoteX/apps/desktop/src-tauri/icons")
 root.mkdir(parents=True, exist_ok=True)
-(root / "icon.png").write_bytes(png(1024, icon_pixel))
-(root / "32x32.png").write_bytes(png(32, icon_pixel))
-(root / "128x128.png").write_bytes(png(128, icon_pixel))
-(root / "128x128@2x.png").write_bytes(png(256, icon_pixel))
-(root / "tray.png").write_bytes(png(32, tray_pixel))
-print("icons written", root)
+(root / "tray.png").write_bytes(png(64, tray_pixel))
+print("tray written")
