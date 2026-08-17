@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
-use capture::{capture_primary_jpeg, quality_max_width, CaptureError};
+use capture::{capture_primary_jpeg, quality_params, CaptureError};
 use input::{inject, InputEvent};
 use protocol::ClientMsg;
 use serde::Serialize;
@@ -33,7 +33,7 @@ impl MediaHandle {
 
 pub fn start_host(
     session_id: String,
-    quality: String,
+    quality_rx: watch::Receiver<String>,
     outgoing: mpsc::Sender<ClientMsg>,
     peer_outgoing: Option<mpsc::Sender<ClientMsg>>,
     preview_tx: Option<watch::Sender<Option<RemoteFrame>>>,
@@ -42,22 +42,28 @@ pub fn start_host(
     let (latest_out, latest_rx) = watch::channel(None::<Value>);
 
     let capture_stop = stop_rx.clone();
+    let mut quality_rx = quality_rx;
     tokio::spawn(async move {
         let mut failures = 0u32;
-        let mut interval = tokio::time::interval(Duration::from_millis(100));
         loop {
             if *capture_stop.borrow() {
                 break;
             }
+            let quality = quality_rx.borrow().clone();
+            let (max_width, jpeg_q, wait_ms) = quality_params(&quality);
             tokio::select! {
                 changed = stop_watch(capture_stop.clone()) => {
                     if changed {
                         break;
                     }
                 }
-                _ = interval.tick() => {
-                    let max_width = quality_max_width(&quality);
-                    let frame = tokio::task::spawn_blocking(move || capture_primary_jpeg(max_width, 58)).await;
+                changed = quality_rx.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                }
+                _ = tokio::time::sleep(Duration::from_millis(wait_ms)) => {
+                    let frame = tokio::task::spawn_blocking(move || capture_primary_jpeg(max_width, jpeg_q)).await;
                     let Ok(Ok(frame)) = frame else {
                         failures = failures.saturating_add(1);
                         if failures == 1 || failures % 20 == 0 {
@@ -121,6 +127,7 @@ pub fn handle_signal(
     role: SessionRole,
     frame_tx: &watch::Sender<Option<RemoteFrame>>,
     host_screen: &Arc<Mutex<(u32, u32)>>,
+    quality_tx: &watch::Sender<String>,
 ) {
     match data.get("kind").and_then(Value::as_str) {
         Some("frame") if matches!(role, SessionRole::Viewer) => {
@@ -139,6 +146,13 @@ pub fn handle_signal(
                 data: data.to_string(),
             }));
         }
+        Some("quality") if matches!(role, SessionRole::Host) => {
+            if let Some(value) = data.get("value").and_then(Value::as_str) {
+                if matches!(value, "smooth" | "balanced" | "high" | "original") {
+                    let _ = quality_tx.send(value.to_string());
+                }
+            }
+        }
         Some("input") if matches!(role, SessionRole::Host) => {
             let Some(event_value) = data.get("event") else {
                 return;
@@ -153,6 +167,19 @@ pub fn handle_signal(
         }
         _ => {}
     }
+}
+
+pub async fn send_quality_signal(
+    session_id: &str,
+    quality: &str,
+    outgoing: &mpsc::Sender<ClientMsg>,
+    peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+) {
+    let payload = json!({
+        "kind": "quality",
+        "value": quality,
+    });
+    send_signal(session_id, payload, outgoing, peer_outgoing).await;
 }
 
 pub async fn send_input_signal(

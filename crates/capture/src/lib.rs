@@ -127,11 +127,15 @@ fn capture_screencapture_macos(max_width: u32, quality: u8) -> Result<FrameJpeg,
 }
 
 pub fn quality_max_width(quality: &str) -> u32 {
+    quality_params(quality).0
+}
+
+/// (max_width, jpeg_quality, interval_ms)
+pub fn quality_params(quality: &str) -> (u32, u8, u64) {
     match quality {
-        "smooth" => 960,
-        "high" => 1600,
-        "original" => 1920,
-        _ => 1280,
+        "smooth" => (960, 42, 70),
+        "high" | "original" => (1600, 78, 120),
+        _ => (1280, 58, 90),
     }
 }
 

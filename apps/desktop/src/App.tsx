@@ -1,14 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { previewSnapshot, type AppSettings, type PermissionsStatus, type Snapshot } from "./types";
 import { resolveLocale, t, translateError, type Locale, type MessageKey } from "./i18n";
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;
-
-function formatMbps(kbps: number) {
-  if (!kbps) return "—";
-  if (kbps < 1000) return `${kbps} kbps`;
-  return `${(kbps / 1000).toFixed(1)} Mbps`;
-}
 
 function latencyTone(ms: number) {
   if (!ms) return "";
@@ -173,9 +167,10 @@ function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) 
         }}
       >
         {src ? (
-          <img src={src} alt="" draggable={false} />
+          <img className="remote-frame in" src={src} alt="" draggable={false} />
         ) : (
           <div className="desktop-wait">
+            <span className="wait-spin" aria-hidden />
             <p>{t(locale, "remoteDesktop")}</p>
             <span>
               {isHost
@@ -216,8 +211,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
   const [customPassword, setCustomPassword] = useState("");
-  const [qualityOpen, setQualityOpen] = useState(false);
-  const [displayOpen, setDisplayOpen] = useState(false);
+  const [chromeVisible, setChromeVisible] = useState(true);
+  const chromeTimer = useRef<number | null>(null);
   const [connectStep, setConnectStep] = useState(0);
   const [toast, setToast] = useState("");
   const [settingsTab, setSettingsTab] = useState(
@@ -376,11 +371,6 @@ export default function App() {
       }
     });
 
-  const showSoon = () => {
-    setToast(tr("comingSoon"));
-    window.setTimeout(() => setToast(""), 1400);
-  };
-
   const run = async (fn: () => Promise<unknown>) => {
     try {
       setError("");
@@ -449,99 +439,89 @@ export default function App() {
     }
   };
 
-  const qualityLabel = useMemo(() => {
-    const map: Record<string, MessageKey> = {
-      smooth: "qualitySmooth",
-      balanced: "qualityBalanced",
-      high: "qualityHigh",
-      original: "qualityOriginal",
+  const bumpChrome = () => {
+    setChromeVisible(true);
+    if (previewScene) return;
+    if (chromeTimer.current) window.clearTimeout(chromeTimer.current);
+    chromeTimer.current = window.setTimeout(() => setChromeVisible(false), 2800);
+  };
+
+  useEffect(() => {
+    if (snap.phase !== "connected") return;
+    bumpChrome();
+    return () => {
+      if (chromeTimer.current) window.clearTimeout(chromeTimer.current);
     };
-    return t(locale, map[snap.settings.quality] ?? "qualityBalanced");
-  }, [snap.settings.quality, locale]);
+  }, [snap.phase]);
+
+  const sessionQuality = snap.session?.quality === "original" ? "high" : (snap.session?.quality || snap.settings.quality);
+
+  const applyQuality = (quality: string) => {
+    setSnap((prev) => ({
+      ...prev,
+      settings: { ...prev.settings, quality },
+      session: prev.session ? { ...prev.session, quality } : prev.session,
+    }));
+    if (isTauri()) {
+      void invoke("set_session_quality", { quality });
+    }
+  };
 
   if (snap.phase === "connected" && snap.session) {
     return (
       <div className="app session-app">
-        <Titlebar
-          onSettings={() => setView("settings")}
-          compact
-        />
+        <Titlebar onSettings={() => setView("settings")} compact />
         <div
-          className="session-toolbar"
-          onMouseLeave={() => {
-            setQualityOpen(false);
-            setDisplayOpen(false);
-          }}
+          className="session-stage"
+          onMouseMove={bumpChrome}
+          onPointerDown={bumpChrome}
         >
-          <span className="brand-mini">{snap.session.peer_name}</span>
-          <span className="pill">{snap.session.rtt_ms || "—"} ms</span>
-          <span className="pill">{formatMbps(snap.session.down_kbps)} ↓</span>
-          <span className="toolbar-grow" />
-          <button className="ghost" onClick={() => setDisplayOpen((v) => !v)}>
-            {tr("display")}
-          </button>
-          <button className="ghost" onClick={() => setQualityOpen((v) => !v)}>
-            {qualityLabel}
-          </button>
-          <button className="ghost" onClick={showSoon}>
-            {tr("keys")}
-          </button>
-          <button className="ghost" onClick={showSoon}>
-            {tr("files")}
-          </button>
-          <button className="danger" onClick={() => run(() => isTauri() ? invoke("hangup") : Promise.resolve(setSnap({ ...snap, phase: "idle", session: null })))}>
-            {tr("end")}
-          </button>
-          {displayOpen && (
-            <div className="popover">
-              <p className="label">{tr("display")}</p>
-              <label className="choice"><input type="radio" defaultChecked readOnly /> {tr("display1")}</label>
-              <label className="choice"><input type="radio" disabled /> {tr("display2")}</label>
-              <button className="ghost">{tr("showAll")}</button>
+          <RemoteDesktop locale={locale} isHost={snap.is_host} />
+          <div className={`session-chrome${chromeVisible ? " show" : ""}`}>
+            <div className="session-toolbar">
+              <div className="session-peer">
+                <span className="live-dot" aria-hidden />
+                <strong>{snap.session.peer_name}</strong>
+                <span className={`pill ${snap.session.path === "p2p" ? "good" : ""}`}>
+                  {snap.session.path === "p2p" ? tr("directP2p") : tr("relay")}
+                </span>
+                <span className={`pill ${latencyTone(snap.session.rtt_ms)}`}>
+                  {snap.session.rtt_ms || "—"} ms
+                </span>
+              </div>
+              <div className="quality-switch" role="radiogroup" aria-label={tr("displayQuality")}>
+                {([
+                  ["smooth", "qualitySmooth"],
+                  ["balanced", "qualityBalanced"],
+                  ["high", "qualityHigh"],
+                ] as const).map(([value, key]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={sessionQuality === value}
+                    className={sessionQuality === value ? "on" : ""}
+                    onClick={() => applyQuality(value)}
+                  >
+                    {t(locale, key)}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="danger"
+                onClick={() =>
+                  run(() =>
+                    isTauri()
+                      ? invoke("hangup")
+                      : Promise.resolve(setSnap({ ...snap, phase: "idle", session: null })),
+                  )
+                }
+              >
+                {tr("end")}
+              </button>
             </div>
-          )}
-          {qualityOpen && (
-            <div className="popover right">
-              <p className="label">{tr("displayQuality")}</p>
-              {(["smooth", "balanced", "high", "original"] as const).map((item) => (
-                <label className="choice" key={item}>
-                  <input
-                    type="radio"
-                    checked={snap.settings.quality === item}
-                    onChange={() => updateSettings({ quality: item })}
-                  />
-                  {t(locale, ({
-                    smooth: "qualitySmooth",
-                    balanced: "qualityBalanced",
-                    high: "qualityHigh",
-                    original: "qualityOriginal",
-                  } as const)[item])}
-                </label>
-              ))}
-              <p className="label">{tr("resolution")}</p>
-              <label className="choice"><input type="radio" defaultChecked readOnly /> {tr("auto")}</label>
-            </div>
-          )}
-        </div>
-        <div className="session-stats">
-          <div className={`stat ${latencyTone(snap.session.rtt_ms)}`}>
-            <span>{tr("latency")}</span>
-            <strong>{snap.session.rtt_ms ? `${snap.session.rtt_ms} ms` : "—"}</strong>
-          </div>
-          <div className="stat good">
-            <span>{tr("download")}</span>
-            <strong>{formatMbps(snap.session.down_kbps)}</strong>
-          </div>
-          <div className="stat">
-            <span>{tr("upload")}</span>
-            <strong>{formatMbps(snap.session.up_kbps)}</strong>
-          </div>
-          <div className="stat">
-            <span>{tr("path")}</span>
-            <strong>{snap.session.path === "p2p" ? tr("directP2p") : tr("relay")}</strong>
           </div>
         </div>
-        <RemoteDesktop locale={locale} isHost={snap.is_host} />
         {toast && <div className="toast">{toast}</div>}
       </div>
     );
@@ -1062,11 +1042,10 @@ function Settings({
               <p className="pane-title">{tr("tabDisplay")}</p>
               <label className="set-row">
                 <span>{tr("quality")}</span>
-                <select value={snap.settings.quality} onChange={(e) => onSettings({ quality: e.target.value })}>
+                <select value={snap.settings.quality === "original" ? "high" : snap.settings.quality} onChange={(e) => onSettings({ quality: e.target.value })}>
                   <option value="smooth">{tr("qualitySmooth")}</option>
                   <option value="balanced">{tr("qualityBalanced")}</option>
                   <option value="high">{tr("qualityHigh")}</option>
-                  <option value="original">{tr("qualityOriginal")}</option>
                 </select>
               </label>
               <label className="set-row">

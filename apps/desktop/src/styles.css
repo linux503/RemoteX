@@ -1028,6 +1028,11 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
     rgba(12, 10, 18, 0.82);
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(18px);
+  animation: connect-panel-in .4s ease;
+}
+@keyframes connect-panel-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
 }
 
 .connect-flow-head {
@@ -1503,29 +1508,131 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
 .about { text-align: center; }
 .about h2 { margin: 12px 0 4px; }
 
-.session-app {
+.session-app,
+.app.session-app {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(900px 400px at 50% -20%, rgba(225, 29, 72, 0.22), transparent 55%),
-    #07080c;
+  background: #07080c;
+  color: #f4efe6;
+  animation: session-in .35s ease;
+}
+.session-app .titlebar-label,
+.session-app .titlebar-label span {
   color: #f4efe6;
 }
-
+@keyframes session-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.session-app .titlebar {
+  height: 40px;
+  padding-left: 78px;
+  flex-shrink: 0;
+}
+.session-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.session-stage .desktop-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.session-stage .desktop-canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
+  background: #0b0c10;
+}
+.session-chrome {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  z-index: 8;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition: opacity .28s ease, transform .28s ease;
+}
+.session-chrome.show,
+.session-stage:hover .session-chrome {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
 .session-toolbar {
   position: relative;
-  margin: 8px 16px 0;
+  margin: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 10px;
+  gap: 10px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 8px 10px 8px 12px;
   border-radius: 16px;
-  background: rgba(16, 17, 24, 0.78);
+  background: rgba(12, 13, 18, 0.78);
   border: 1px solid rgba(255,255,255,0.08);
   backdrop-filter: blur(22px);
   font-size: 13px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+.session-peer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: auto;
+}
+.session-peer strong {
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+  flex-shrink: 0;
+}
+.quality-switch {
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.quality-switch button {
+  border: 0;
+  background: transparent;
+  color: rgba(244, 239, 230, 0.62);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  width: auto;
+}
+.quality-switch button.on {
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.28);
+}
+.session-toolbar .danger {
+  margin-left: 2px;
+  width: auto;
+  min-height: 32px;
 }
 
 .session-stats {
@@ -1587,20 +1694,38 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
   outline: none;
 }
 
-.desktop-canvas.remote img {
+.desktop-canvas.remote img,
+.remote-frame {
   width: 100%;
   height: 100%;
   object-fit: contain;
   display: block;
   user-select: none;
   pointer-events: none;
+  background: #000;
+}
+.remote-frame {
+  opacity: 0;
+}
+.remote-frame.in {
+  opacity: 1;
+  transition: opacity .28s ease;
 }
 
 .desktop-wait {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   place-items: center;
 }
+.wait-spin {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #dc2626;
+  animation: wait-spin .8s linear infinite;
+}
+@keyframes wait-spin { to { transform: rotate(360deg); } }
 
 .popover {
   position: absolute;
@@ -1626,4 +1751,10 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+.pill.good {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+.pill.ok { background: rgba(251, 191, 36, 0.16); color: #fde68a; }
+.pill.bad { background: rgba(220, 38, 38, 0.18); color: #fecaca; }
 .toolbar-grow { flex: 1; }

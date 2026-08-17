@@ -150,6 +150,18 @@ async fn session_input(
 }
 
 #[tauri::command]
+async fn set_session_quality(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    quality: String,
+) -> Result<remotex_core::Snapshot, CommandError> {
+    let mut guard = state.lock().await;
+    guard.set_session_quality(quality).await?;
+    emit_snapshot(&app, &guard).await;
+    Ok(guard.snapshot_async().await)
+}
+
+#[tauri::command]
 fn permissions_status() -> remotex_permissions::PermissionsSnapshot {
     remotex_permissions::PermissionsSnapshot::check()
 }
@@ -308,6 +320,7 @@ pub fn run() {
             request_screen_recording,
             open_permission_settings,
             session_input,
+            set_session_quality,
             latest_frame
         ])
         .run(tauri::generate_context!())

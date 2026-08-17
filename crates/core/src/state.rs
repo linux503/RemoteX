@@ -100,6 +100,7 @@ pub struct AppState {
     host_screen: Arc<Mutex<(u32, u32)>>,
     frame_tx: watch::Sender<Option<RemoteFrame>>,
     frame_rx: watch::Receiver<Option<RemoteFrame>>,
+    quality_tx: watch::Sender<String>,
 }
 
 impl AppState {
@@ -115,6 +116,7 @@ impl AppState {
         let (in_tx, mut in_rx) = mpsc::channel::<ServerMsg>(64);
         let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(32);
         let (frame_tx, frame_rx) = watch::channel(None::<RemoteFrame>);
+        let (quality_tx, _quality_rx) = watch::channel(settings.quality.clone());
 
         let register = ClientMsg::register(&DeviceInfo {
             id: identity.device_id.clone(),
@@ -144,6 +146,7 @@ impl AppState {
             host_screen: Arc::new(Mutex::new(media::primary_screen_size())),
             frame_tx: frame_tx.clone(),
             frame_rx: frame_rx.clone(),
+            quality_tx: quality_tx.clone(),
         }));
 
         let client = SignalingClient::new(settings.signaling_url.clone());
@@ -183,7 +186,12 @@ impl AppState {
         let snapshot_events = evt_tx.clone();
         tokio::spawn(async move {
             while let Some(msg) = in_rx.recv().await {
-                let skip_snap = matches!(&msg, ServerMsg::Signal { .. });
+                let skip_snap = match &msg {
+                    ServerMsg::Signal { data, .. } => {
+                        data.get("kind").and_then(|v| v.as_str()) == Some("frame")
+                    }
+                    _ => false,
+                };
                 let mut guard = loop_state.lock().await;
                 guard.handle_server(msg).await;
                 if skip_snap {
@@ -257,6 +265,7 @@ impl AppState {
 
     pub fn update_settings(&mut self, settings: AppSettings) -> Result<()> {
         self.settings = settings;
+        let _ = self.quality_tx.send(self.settings.quality.clone());
         self.settings.save(&self.dir)?;
         Ok(())
     }
@@ -388,6 +397,30 @@ impl AppState {
         Ok(())
     }
 
+    pub async fn set_session_quality(&mut self, quality: String) -> Result<()> {
+        if !matches!(quality.as_str(), "smooth" | "balanced" | "high" | "original") {
+            return Ok(());
+        }
+        self.settings.quality = quality.clone();
+        self.settings.save(&self.dir)?;
+        if let Some(session) = &mut self.session {
+            session.quality = quality.clone();
+        }
+        let _ = self.quality_tx.send(quality.clone());
+        if self.session_role == Some(SessionRole::Viewer) {
+            if let Some(session) = &self.session {
+                media::send_quality_signal(
+                    &session.session_id,
+                    &quality,
+                    &self.outgoing,
+                    self.peer_outgoing.as_ref(),
+                )
+                .await;
+            }
+        }
+        Ok(())
+    }
+
     fn stop_media(&mut self) {
         if let Some(media) = self.media.take() {
             media.stop();
@@ -405,9 +438,10 @@ impl AppState {
         };
         if role == SessionRole::Host {
             *self.host_screen.try_lock().unwrap() = media::primary_screen_size();
+            let _ = self.quality_tx.send(self.settings.quality.clone());
             self.media = Some(media::start_host(
                 session.session_id,
-                self.settings.quality.clone(),
+                self.quality_tx.subscribe(),
                 self.outgoing.clone(),
                 self.peer_outgoing.clone(),
                 Some(self.frame_tx.clone()),
@@ -556,7 +590,16 @@ impl AppState {
                     role,
                     &self.frame_tx,
                     &self.host_screen,
+                    &self.quality_tx,
                 );
+                if data.get("kind").and_then(|v| v.as_str()) == Some("quality") {
+                    if let Some(value) = data.get("value").and_then(|v| v.as_str()) {
+                        if let Some(session) = &mut self.session {
+                            session.quality = value.to_string();
+                        }
+                        self.settings.quality = value.to_string();
+                    }
+                }
             }
         }
     }
