@@ -214,7 +214,6 @@ export default function App() {
   const [chromeVisible, setChromeVisible] = useState(true);
   const chromeTimer = useRef<number | null>(null);
   const [connectStep, setConnectStep] = useState(0);
-  const [toast, setToast] = useState("");
   const [settingsTab, setSettingsTab] = useState(
     previewScene === "settings" || previewScene === "permissions" ? (previewScene === "permissions" ? "permissions" : "general") : "general",
   );
@@ -522,7 +521,6 @@ export default function App() {
             </div>
           </div>
         </div>
-        {toast && <div className="toast">{toast}</div>}
       </div>
     );
   }
@@ -713,8 +711,6 @@ export default function App() {
           <footer>RemoteX v0.2.5</footer>
         </main>
       )}
-
-      {toast && view !== "settings" && snap.phase !== "connected" && <div className="toast">{toast}</div>}
 
       {passwordStep && (
         <ConnectPasswordModal
