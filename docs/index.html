@@ -5,88 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RemoteX — Fast Remote Desktop</title>
     <meta name="description" content="无需注册，无需登录。输入设备码即可远程连接。Windows 与 macOS 跨平台远程桌面。" />
-    <meta property="og:title" content="RemoteX — Fast Remote Desktop" />
-    <meta property="og:description" content="No account. No setup. Just connect." />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet" />
-    <style>
-      :root {
-        --bg: #12080a;
-        --text: #fff4f2;
-        --muted: #c4a8ab;
-        --line: rgba(255, 90, 110, .14);
-        --accent: #ff3b55;
-        --accent-deep: #9b1230;
-        --ready: #fb7185;
-      }
-      * { box-sizing: border-box; }
-      html, body { margin: 0; background: var(--bg); color: var(--text); font-family: "Instrument Sans", system-ui, sans-serif; }
-      a { color: inherit; text-decoration: none; }
-      body {
-        background:
-          radial-gradient(900px 460px at 8% -12%, rgba(255, 59, 85, .34), transparent 55%),
-          radial-gradient(720px 380px at 100% 0%, rgba(155, 18, 48, .28), transparent 48%),
-          #12080a;
-      }
-      .wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
-      header {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 22px 0; position: sticky; top: 0; z-index: 10;
-        backdrop-filter: blur(16px);
-      }
-      .brand { display: flex; gap: 10px; align-items: center; font-weight: 700; letter-spacing: -.03em; }
-      .brand img, .brand svg { display: block; }
-      nav { display: flex; gap: 22px; color: var(--muted); font-size: 14px; }
-      nav a:hover { color: var(--text); }
-      .hero { padding: 64px 0 36px; display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
-      .mark { width: 72px; height: 72px; margin-bottom: 18px; filter: drop-shadow(0 18px 30px rgba(255,59,85,.35)); }
-      .eyebrow { color: var(--accent); letter-spacing: .16em; text-transform: uppercase; font-size: 12px; font-weight: 700; }
-      h1 { font-family: "Instrument Serif", serif; font-size: clamp(48px, 7vw, 84px); line-height: .92; margin: 12px 0 18px; font-weight: 400; letter-spacing: -.04em; }
-      .lead { font-size: 20px; color: var(--muted); max-width: 520px; }
-      .cta { display: flex; gap: 12px; margin: 32px 0 18px; flex-wrap: wrap; }
-      .btn {
-        display: inline-flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 16px;
-        background: linear-gradient(135deg, #ff4d64, #e11d48 48%, #9b1230);
-        color: white; font-weight: 700; box-shadow: 0 16px 40px rgba(225, 29, 72, .38);
-      }
-      .btn.secondary { background: rgba(255,59,85,.08); box-shadow: none; border: 1px solid var(--line); }
-      .note { color: var(--muted); font-size: 13px; }
-      .window {
-        border-radius: 24px; padding: 18px; border: 1px solid var(--line);
-        background: rgba(28, 10, 14, .78); box-shadow: 0 40px 80px rgba(80, 0, 16, .35);
-        backdrop-filter: blur(20px);
-      }
-      .dots { display: flex; gap: 6px; margin-bottom: 18px; }
-      .dots i { width: 10px; height: 10px; border-radius: 50%; background: #5a2430; display: block; }
-      .id { font-size: 34px; letter-spacing: .08em; font-weight: 700; margin: 8px 0 10px;
-        background: linear-gradient(120deg, #fff 10%, #ff6b7d); -webkit-background-clip: text; color: transparent; }
-      .ready { color: var(--ready); font-size: 13px; }
-      .downloads { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 24px 0 80px; }
-      .card {
-        border: 1px solid var(--line); border-radius: 24px; padding: 28px;
-        background: rgba(255, 59, 85, .04);
-      }
-      .card h3 { margin: 0 0 8px; font-size: 22px; }
-      .card p { color: var(--muted); margin: 0 0 20px; }
-      .os { font-size: 13px; color: var(--accent); letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
-      .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding-bottom: 80px; }
-      .features article { padding: 22px; border-radius: 20px; border: 1px solid var(--line); background: rgba(255,59,85,.04); }
-      .features h4 { margin: 0 0 8px; }
-      .features p { margin: 0; color: var(--muted); font-size: 14px; }
-      footer { display: flex; justify-content: space-between; padding: 28px 0 60px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); }
-      @media (max-width: 860px) {
-        .hero, .downloads, .features, header, footer { grid-template-columns: 1fr; display: block; }
-        nav { display: none; }
-        .hero { padding-top: 36px; }
-        .window { margin-top: 28px; }
-        .downloads .card { margin-bottom: 12px; }
-        .features article { margin-bottom: 10px; }
-      }
-    </style>
+    <link rel="stylesheet" href="./site.css" />
   </head>
   <body>
+    <div class="noise"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+    <div class="grid"></div>
+
     <div class="wrap">
       <header>
         <a class="brand" href="./">
@@ -94,66 +25,131 @@
           RemoteX
         </a>
         <nav>
-          <a href="#download">Download</a>
+          <a href="#shots">Product</a>
           <a href="#features">Features</a>
+          <a href="#download">Download</a>
           <a href="https://github.com/linux503/RemoteX">GitHub</a>
         </nav>
+        <a class="btn tiny" href="#download">Get the app</a>
       </header>
 
       <section class="hero">
-        <div>
-          <img class="mark" src="./logo.svg" alt="RemoteX" />
-          <p class="eyebrow">v0.2 · Fast Remote Desktop</p>
-          <h1>The simplest way to connect two computers.</h1>
-          <p class="lead">无需注册，无需登录。打开软件，复制设备码，连接。Windows ↔ macOS，同一套体验。</p>
+        <div class="hero-copy reveal">
+          <p class="eyebrow"><span></span> v0.2 · Fast Remote Desktop</p>
+          <h1>Open. Copy the code.<br />Connect.</h1>
+          <p class="lead">无需注册，无需登录。红到骨子里的远程桌面：Windows ↔ macOS，输入设备码就能连。</p>
           <div class="cta">
             <a class="btn" href="#download">Download RemoteX</a>
-            <a class="btn secondary" href="https://github.com/linux503/RemoteX">View on GitHub</a>
+            <a class="btn secondary" href="#shots">See the product</a>
           </div>
           <p class="note">No account. No setup. Just connect.</p>
         </div>
-        <div class="window">
-          <div class="dots"><i></i><i></i><i></i></div>
-          <p class="eyebrow">This device</p>
-          <div class="id">825 391 726</div>
-          <p class="ready">● Ready · 18ms</p>
-          <p class="note" style="margin-top:18px">Temporary Password</p>
-          <p style="font-size:22px;letter-spacing:.14em;margin:8px 0 0">X 7 F 9 K 2</p>
+        <div class="hero-visual reveal delay">
+          <div class="glow"></div>
+          <figure class="phone-frame float">
+            <img src="./shots/home.png" alt="RemoteX home — device ID and temporary password" />
+          </figure>
+        </div>
+      </section>
+    </div>
+
+    <div class="marquee" aria-hidden="true">
+      <div class="track">
+        <span>No Account</span><span>P2P First</span><span>36ms</span><span>Windows ↔ macOS</span><span>Device ID</span><span>Unattended</span>
+        <span>No Account</span><span>P2P First</span><span>36ms</span><span>Windows ↔ macOS</span><span>Device ID</span><span>Unattended</span>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <section id="shots" class="shots">
+        <div class="section-head reveal">
+          <p class="eyebrow">Product</p>
+          <h2>看起来像成品，用起来像便签。</h2>
+        </div>
+        <div class="shot-grid">
+          <figure class="shot reveal">
+            <img src="./shots/home.png" alt="Home screen with device ID" />
+            <figcaption>
+              <strong>Home</strong>
+              <span>设备码 + 临时密码，打开就知道怎么用。</span>
+            </figcaption>
+          </figure>
+          <figure class="shot reveal delay">
+            <img src="./shots/connecting.png" alt="Connecting overlay" />
+            <figcaption>
+              <strong>Handshake</strong>
+              <span>寻找设备、加密握手、P2P，一步一步亮起来。</span>
+            </figcaption>
+          </figure>
+          <figure class="shot wide reveal">
+            <img src="./shots/session.png" alt="Remote session with latency and speed" />
+            <figcaption>
+              <strong>Session</strong>
+              <span>延迟、下载、上传、Direct P2P，连上就能看见。</span>
+            </figcaption>
+          </figure>
+          <figure class="shot reveal delay">
+            <img src="./shots/incoming.png" alt="Incoming connection request" />
+            <figcaption>
+              <strong>Confirm</strong>
+              <span>对方要控制这台电脑时，先接受，再开始。</span>
+            </figcaption>
+          </figure>
         </div>
       </section>
 
-      <section id="download" class="downloads">
-        <article class="card">
-          <p class="os">macOS</p>
-          <h3>Download for Mac</h3>
-          <p>Apple Silicon 与 Intel。安装后打开即可获得设备码。</p>
-          <div class="cta">
-            <a class="btn" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_aarch64.dmg">Apple Silicon</a>
-            <a class="btn secondary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_x64.dmg">Intel</a>
-          </div>
-        </article>
-        <article class="card">
-          <p class="os">Windows</p>
-          <h3>Download for Windows</h3>
-          <p>Windows 10 / 11。和 Mac 同一套界面，跨平台互相控制。安装包放到 GitHub Release 后即可点此下载。</p>
-          <div class="cta">
-            <a class="btn" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_x64-setup.exe">Windows Installer</a>
-            <a class="btn secondary" href="https://github.com/linux503/RemoteX/releases/latest">All releases</a>
-          </div>
-        </article>
+      <section id="features" class="bento">
+        <article class="reveal"><h3>No Account</h3><p>没有登录页。ID 和密码就是全部。</p></article>
+        <article class="reveal delay"><h3>Cross-platform</h3><p>Windows 和 macOS 互相远程，同一套红色界面。</p></article>
+        <article class="reveal"><h3>Live stats</h3><p>连接后显示延迟和速度，P2P 还是 Relay 一眼能看出来。</p></article>
+        <article class="reveal delay"><h3>3 seconds</h3><p>一个窗口解决 80% 操作。复制，连接，完成。</p></article>
       </section>
 
-      <section id="features" class="features">
-        <article><h4>No Account</h4><p>设备码 + 临时密码，打开就能连。</p></article>
-        <article><h4>Cross-platform</h4><p>Windows 与 macOS 互相远程。</p></article>
-        <article><h4>Fast</h4><p>连接后显示延迟、速度和 P2P / Relay。</p></article>
-        <article><h4>Simple</h4><p>一个窗口解决 80% 操作，3 秒会用。</p></article>
+      <section id="download" class="downloads">
+        <div class="section-head reveal">
+          <p class="eyebrow">Download</p>
+          <h2>选你的系统，直接安装。</h2>
+        </div>
+        <div class="dl-grid">
+          <article class="card reveal">
+            <p class="os">macOS</p>
+            <h3>Download for Mac</h3>
+            <p>Apple Silicon 与 Intel。安装后打开即可获得设备码。</p>
+            <div class="cta">
+              <a class="btn" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_aarch64.dmg">Apple Silicon</a>
+              <a class="btn secondary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_x64.dmg">Intel</a>
+            </div>
+          </article>
+          <article class="card reveal delay">
+            <p class="os">Windows</p>
+            <h3>Download for Windows</h3>
+            <p>Windows 10 / 11。和 Mac 同一套界面，跨平台互相控制。</p>
+            <div class="cta">
+              <a class="btn" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_0.2.0_x64-setup.exe">Windows Installer</a>
+              <a class="btn secondary" href="https://github.com/linux503/RemoteX/releases/latest">All releases</a>
+            </div>
+          </article>
+        </div>
       </section>
 
       <footer>
         <span>RemoteX v0.2 · Fast Remote Desktop</span>
-        <a href="https://github.com/linux503/RemoteX/releases">Releases</a>
+        <a href="https://github.com/linux503/RemoteX">GitHub</a>
       </footer>
     </div>
+
+    <script>
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("in"); });
+      }, { threshold: 0.12 });
+      document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+      document.querySelectorAll(".reveal").forEach((el, i) => {
+        if (el.getBoundingClientRect().top < innerHeight) el.classList.add("in");
+      });
+      window.addEventListener("pointermove", (e) => {
+        document.body.style.setProperty("--mx", e.clientX + "px");
+        document.body.style.setProperty("--my", e.clientY + "px");
+      });
+    </script>
   </body>
 </html>

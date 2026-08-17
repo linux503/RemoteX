@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { mockSnapshot, type AppSettings, type Snapshot } from "./types";
+import { previewSnapshot, type AppSettings, type Snapshot } from "./types";
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;
 
@@ -21,9 +21,12 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
   return invoke<T>(cmd, args);
 }
 
+const previewScene =
+  typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("scene") : null;
+
 export default function App() {
-  const [snap, setSnap] = useState<Snapshot>(mockSnapshot);
-  const [view, setView] = useState<"home" | "settings">("home");
+  const [snap, setSnap] = useState<Snapshot>(() => previewSnapshot(previewScene));
+  const [view, setView] = useState<"home" | "settings">(previewScene === "settings" ? "settings" : "home");
   const [hidePassword, setHidePassword] = useState(false);
   const [connectId, setConnectId] = useState("");
   const [connectPassword, setConnectPassword] = useState("");
@@ -33,6 +36,26 @@ export default function App() {
   const [qualityOpen, setQualityOpen] = useState(false);
   const [displayOpen, setDisplayOpen] = useState(false);
   const [connectStep, setConnectStep] = useState(0);
+
+  useEffect(() => {
+    if (!previewScene) return;
+    document.documentElement.style.colorScheme = "dark";
+  }, []);
+
+  useEffect(() => {
+    if (previewScene === "connecting") {
+      setConnectStep(2);
+      return;
+    }
+    if (snap.phase !== "connecting") {
+      setConnectStep(0);
+      return;
+    }
+    const timers = [400, 900, 1500, 2100].map((ms, index) =>
+      window.setTimeout(() => setConnectStep(index + 1), ms),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [snap.phase]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -54,18 +77,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (snap.phase !== "connecting") {
-      setConnectStep(0);
-      return;
-    }
-    const timers = [400, 900, 1500, 2100].map((ms, index) =>
-      window.setTimeout(() => setConnectStep(index + 1), ms),
-    );
-    return () => timers.forEach(clearTimeout);
-  }, [snap.phase]);
-
-  useEffect(() => {
-    if (isTauri() || snap.phase !== "connected") return;
+    if (isTauri() || previewScene || snap.phase !== "connected") return;
     const timer = window.setInterval(() => {
       setSnap((prev) => {
         if (!prev.session) return prev;

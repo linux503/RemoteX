@@ -117,3 +117,55 @@ export const mockSnapshot = (): Snapshot => ({
   unattended: false,
   has_permanent_password: false,
 });
+
+export function previewSnapshot(scene: string | null): Snapshot {
+  const base = mockSnapshot();
+  if (scene === "connecting") {
+    return {
+      ...base,
+      phase: "connecting",
+      session: {
+        session_id: "preview",
+        peer_id: "391285663",
+        peer_name: "Office PC",
+        peer_os: "windows",
+        rtt_ms: 0,
+        down_kbps: 0,
+        up_kbps: 0,
+        path: "unknown",
+        quality: "balanced",
+      },
+    };
+  }
+  if (scene === "session") {
+    return {
+      ...base,
+      rtt_ms: 36,
+      phase: "connected",
+      session: {
+        session_id: "preview",
+        peer_id: "391285663",
+        peer_name: "Office PC",
+        peer_os: "windows",
+        rtt_ms: 36,
+        down_kbps: 8420,
+        up_kbps: 186,
+        path: "p2p",
+        quality: "balanced",
+      },
+    };
+  }
+  if (scene === "incoming") {
+    return {
+      ...base,
+      phase: "incoming",
+      incoming: {
+        session_id: "preview",
+        from_id: "391285663",
+        from_name: "Office PC",
+        from_os: "windows",
+      },
+    };
+  }
+  return base;
+}
