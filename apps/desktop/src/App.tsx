@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { previewSnapshot, type AppSettings, type Snapshot } from "./types";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { previewSnapshot, type AppSettings, type PermissionsStatus, type Snapshot } from "./types";
 import { resolveLocale, t, translateError, type Locale, type MessageKey } from "./i18n";
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;
@@ -15,6 +15,35 @@ function latencyTone(ms: number) {
   if (ms < 45) return "good";
   if (ms < 90) return "ok";
   return "bad";
+}
+
+const mockPermissions = (): PermissionsStatus => ({
+  screen_recording: "denied",
+  accessibility: "denied",
+  input_monitoring: "unknown",
+  platform: "macos",
+  all_granted: false,
+});
+
+async function fetchPermissions(): Promise<PermissionsStatus | null> {
+  if (!isTauri()) return mockPermissions();
+  try {
+    return await invoke<PermissionsStatus>("permissions_status");
+  } catch {
+    return null;
+  }
+}
+
+function permLabel(locale: Locale, state: PermissionsStatus[keyof PermissionsStatus]) {
+  if (state === "granted") return t(locale, "permGranted");
+  if (state === "denied") return t(locale, "permDenied");
+  return t(locale, "permUnknown");
+}
+
+function permDotClass(state: string) {
+  if (state === "granted") return "ready";
+  if (state === "denied") return "offline";
+  return "warn";
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -45,6 +74,22 @@ export default function App() {
   const [displayOpen, setDisplayOpen] = useState(false);
   const [connectStep, setConnectStep] = useState(0);
   const [toast, setToast] = useState("");
+  const [settingsTab, setSettingsTab] = useState(
+    previewScene === "settings" || previewScene === "permissions" ? (previewScene === "permissions" ? "permissions" : "general") : "general",
+  );
+  const [perms, setPerms] = useState<PermissionsStatus | null>(null);
+
+  useEffect(() => {
+    if (!isTauri()) {
+      setPerms(mockPermissions());
+      return;
+    }
+    void fetchPermissions().then(setPerms);
+    const timer = window.setInterval(() => {
+      void fetchPermissions().then(setPerms);
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const theme = snap.settings.theme;
@@ -339,6 +384,9 @@ export default function App() {
         <Settings
           snap={snap}
           locale={locale}
+          initialTab={settingsTab}
+          perms={perms}
+          onRefreshPerms={() => void fetchPermissions().then(setPerms)}
           onBack={() => setView("home")}
           onSettings={updateSettings}
           onPermanentPassword={(password) => {
@@ -347,6 +395,20 @@ export default function App() {
         />
       ) : (
         <main className="home">
+          {perms && perms.platform === "macos" && !perms.all_granted && (
+            <section className="perm-banner">
+              <p>{tr("permNeeded")}</p>
+              <button
+                className="primary"
+                onClick={() => {
+                  setSettingsTab("permissions");
+                  setView("settings");
+                }}
+              >
+                {tr("permGoSettings")}
+              </button>
+            </section>
+          )}
           <header className="hero">
             <Logo size={28} />
             <div>
@@ -605,17 +667,23 @@ function Logo({ size }: { size: number }) {
 function Settings({
   snap,
   locale,
+  initialTab,
+  perms,
+  onRefreshPerms,
   onBack,
   onSettings,
   onPermanentPassword,
 }: {
   snap: Snapshot;
   locale: Locale;
+  initialTab: string;
+  perms: PermissionsStatus | null;
+  onRefreshPerms: () => void;
   onBack: () => void;
   onSettings: (patch: Partial<AppSettings>) => void;
   onPermanentPassword: (password: string) => void;
 }) {
-  const [tab, setTab] = useState("general");
+  const [tab, setTab] = useState(initialTab);
   const [permanent, setPermanent] = useState("");
   const [copiedLan, setCopiedLan] = useState(false);
   const tr = (key: MessageKey) => t(locale, key);
@@ -749,16 +817,75 @@ function Settings({
             <section className="card permissions">
               <p className="pane-title">{tr("systemPermissions")}</p>
               <p className="hint">{tr("permHint")}</p>
-              <div className="perm"><span className="dot ready" /> {tr("screenRecording")}</div>
-              <div className="perm"><span className="dot ready" /> {tr("accessibility")}</div>
-              <div className="perm"><span className="dot offline" /> {tr("inputMonitoring")}</div>
-              <button
-                className="primary perm-btn"
-                onClick={() => {
-                  if (isTauri()) void invoke("open_permission_settings");
-                }}
-              >
-                {tr("openSettings")}
+              {perms?.all_granted ? (
+                <p className="perm-ready">{tr("permReady")}</p>
+              ) : (
+                <div className="perm-guide">
+                  <p className="label">{tr("permGuideTitle")}</p>
+                  <ol>
+                    <li>{tr("permStep1")}</li>
+                    <li>{tr("permStep2")}</li>
+                    <li>{tr("permStep3")}</li>
+                  </ol>
+                  <p className="hint">{tr("permRestart")}</p>
+                </div>
+              )}
+              <PermRow
+                locale={locale}
+                title={tr("screenRecording")}
+                why={tr("permWhyScreen")}
+                state={perms?.screen_recording ?? "unknown"}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      className="ghost perm-action"
+                      onClick={() => isTauri() && void invoke("request_screen_recording")}
+                    >
+                      {tr("permRequestScreen")}
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost perm-action"
+                      onClick={() => isTauri() && void invoke("open_permission_panel", { kind: "screen_recording" })}
+                    >
+                      {tr("permOpen")}
+                    </button>
+                  </>
+                }
+              />
+              <PermRow
+                locale={locale}
+                title={tr("accessibility")}
+                why={tr("permWhyAccessibility")}
+                state={perms?.accessibility ?? "unknown"}
+                actions={
+                  <button
+                    type="button"
+                    className="ghost perm-action"
+                    onClick={() => isTauri() && void invoke("open_permission_panel", { kind: "accessibility" })}
+                  >
+                    {tr("permOpen")}
+                  </button>
+                }
+              />
+              <PermRow
+                locale={locale}
+                title={tr("inputMonitoring")}
+                why={tr("permWhyInput")}
+                state={perms?.input_monitoring ?? "unknown"}
+                actions={
+                  <button
+                    type="button"
+                    className="ghost perm-action"
+                    onClick={() => isTauri() && void invoke("open_permission_panel", { kind: "input_monitoring" })}
+                  >
+                    {tr("permOpen")}
+                  </button>
+                }
+              />
+              <button type="button" className="primary perm-btn" onClick={onRefreshPerms}>
+                {tr("permRefresh")}
               </button>
             </section>
           )}
@@ -778,6 +905,36 @@ function Settings({
         </div>
       </div>
     </main>
+  );
+}
+
+function PermRow({
+  locale,
+  title,
+  why,
+  state,
+  actions,
+}: {
+  locale: Locale;
+  title: string;
+  why: string;
+  state: string;
+  actions: ReactNode;
+}) {
+  return (
+    <div className="perm-row">
+      <div className="perm-main">
+        <span className={`dot ${permDotClass(state)}`} />
+        <div>
+          <strong>{title}</strong>
+          <p className="muted">{why}</p>
+        </div>
+      </div>
+      <div className="perm-side">
+        <span className={`perm-badge ${state}`}>{permLabel(locale, state as "granted" | "denied" | "unknown")}</span>
+        <div className="perm-actions">{actions}</div>
+      </div>
+    </div>
   );
 }
 

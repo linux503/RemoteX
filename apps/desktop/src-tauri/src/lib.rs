@@ -123,14 +123,23 @@ fn displays() -> Vec<DisplayInfo> {
 }
 
 #[tauri::command]
+fn permissions_status() -> remotex_permissions::PermissionsSnapshot {
+    remotex_permissions::PermissionsSnapshot::check()
+}
+
+#[tauri::command]
+fn open_permission_panel(kind: String) -> Result<(), CommandError> {
+    remotex_permissions::PermissionsSnapshot::open_panel(&kind).map_err(CommandError::from)
+}
+
+#[tauri::command]
+fn request_screen_recording() -> bool {
+    remotex_permissions::PermissionsSnapshot::request_screen_recording()
+}
+
+#[tauri::command]
 fn open_permission_settings() -> Result<(), CommandError> {
-    #[cfg(target_os = "macos")]
-    {
-        let _ = std::process::Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
-            .spawn();
-    }
-    Ok(())
+    open_permission_panel("screen_recording".into())
 }
 
 async fn emit_snapshot(app: &AppHandle, state: &AppState) {
@@ -258,6 +267,9 @@ pub fn run() {
             set_permanent_password,
             toggle_favorite,
             displays,
+            permissions_status,
+            open_permission_panel,
+            request_screen_recording,
             open_permission_settings
         ])
         .run(tauri::generate_context!())

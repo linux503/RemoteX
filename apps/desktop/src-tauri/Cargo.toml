@@ -22,5 +22,6 @@ remotex-core = { path = "../../../crates/core" }
 capture = { path = "../../../crates/capture", package = "remotex-capture" }
 input = { path = "../../../crates/input", package = "remotex-input" }
 signaling = { path = "../../signaling" }
+remotex-permissions = { path = "../../../crates/permissions" }
 tracing.workspace = true
 tracing-subscriber.workspace = true

@@ -9,6 +9,14 @@ export interface NearbyDevice {
   ws: string;
 }
 
+export interface PermissionsStatus {
+  screen_recording: "granted" | "denied" | "unknown";
+  accessibility: "granted" | "denied" | "unknown";
+  input_monitoring: "granted" | "denied" | "unknown";
+  platform: string;
+  all_granted: boolean;
+}
+
 export interface RecentDevice {
   id: string;
   name: string;
@@ -181,6 +189,9 @@ export function previewSnapshot(scene: string | null): Snapshot {
         from_os: "windows",
       },
     };
+  }
+  if (scene === "permissions") {
+    return { ...base, phase: "idle" };
   }
   return base;
 }

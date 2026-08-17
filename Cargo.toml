@@ -7,6 +7,7 @@ members = [
     "crates/input",
     "apps/signaling",
     "apps/desktop/src-tauri",
+    "crates/permissions",
 ]
 
 [workspace.package]
@@ -36,3 +37,4 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
 tokio-tungstenite = "0.26"
 url = "2"
+permissions = { path = "crates/permissions", package = "remotex-permissions" }

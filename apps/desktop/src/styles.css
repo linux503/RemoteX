@@ -204,6 +204,93 @@ button { cursor: pointer; }
   box-shadow: 0 0 0 4px rgba(15, 159, 110, 0.16);
 }
 .status.offline .dot, .dot.offline { background: var(--warn); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.16); }
+
+.perm-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 90, 110, 0.22);
+  background: rgba(255, 59, 85, 0.08);
+  font-size: 13px;
+}
+.perm-banner .primary {
+  width: auto;
+  padding: 8px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.perm-guide {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 59, 85, 0.06);
+  border: 1px solid var(--line);
+}
+.perm-guide ol {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.perm-ready {
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 159, 110, 0.1);
+  color: var(--ready);
+  font-size: 13px;
+  font-weight: 650;
+}
+.perm-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.perm-row:last-of-type { border-bottom: 0; }
+.perm-main {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.perm-main strong { display: block; font-size: 13px; }
+.perm-main .muted { margin: 4px 0 0; font-size: 12px; line-height: 1.4; }
+.perm-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.perm-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.perm-badge.granted { color: var(--ready); border-color: rgba(15, 159, 110, 0.35); }
+.perm-badge.denied { color: var(--danger); border-color: rgba(190, 18, 60, 0.35); }
+.perm-badge.unknown { color: var(--warn); border-color: rgba(217, 119, 6, 0.35); }
+.perm-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.perm-action {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 650;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
 
 .lan-url {
   display: grid;
