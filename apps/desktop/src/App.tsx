@@ -46,6 +46,38 @@ function permDotClass(state: string) {
   return "warn";
 }
 
+type PermKind = "screen_recording" | "accessibility" | "input_monitoring";
+
+const PERM_ORDER: PermKind[] = ["screen_recording", "accessibility", "input_monitoring"];
+
+function permItems(perms: PermissionsStatus) {
+  return [
+    { kind: "screen_recording" as const, state: perms.screen_recording, titleKey: "screenRecording" as const, whyKey: "permWhyScreen" as const },
+    { kind: "accessibility" as const, state: perms.accessibility, titleKey: "accessibility" as const, whyKey: "permWhyAccessibility" as const },
+    { kind: "input_monitoring" as const, state: perms.input_monitoring, titleKey: "inputMonitoring" as const, whyKey: "permWhyInput" as const },
+  ];
+}
+
+function nextPermKind(perms: PermissionsStatus): PermKind | null {
+  for (const kind of PERM_ORDER) {
+    const item = permItems(perms).find((p) => p.kind === kind);
+    if (item && item.state !== "granted") return kind;
+  }
+  return null;
+}
+
+function grantedPermCount(perms: PermissionsStatus) {
+  return permItems(perms).filter((p) => p.state === "granted").length;
+}
+
+async function openPermKind(kind: PermKind) {
+  if (!isTauri()) return;
+  if (kind === "screen_recording") {
+    await invoke("request_screen_recording");
+  }
+  await invoke("open_permission_panel", { kind });
+}
+
 function modifierBits(event: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }) {
   let bits = 0;
   if (event.shiftKey) bits |= 1;
@@ -196,18 +228,20 @@ export default function App() {
 
   useEffect(() => {
     if (previewScene === "connecting") {
-      setConnectStep(2);
+      setConnectStep(3);
       return;
     }
     if (snap.phase !== "connecting") {
       setConnectStep(0);
       return;
     }
-    const timers = [400, 900, 1500, 2100].map((ms, index) =>
-      window.setTimeout(() => setConnectStep(index + 1), ms),
+    setConnectStep(1);
+    const timers = [650, 650, 650].map((ms, index) =>
+      window.setTimeout(() => setConnectStep(index + 2), ms * (index + 1)),
     );
+    timers.push(window.setTimeout(() => setConnectStep(4), 2600));
     return () => timers.forEach(clearTimeout);
-  }, [snap.phase]);
+  }, [snap.phase, previewScene]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -493,7 +527,11 @@ export default function App() {
 
   return (
     <div className="app">
-      <Titlebar onSettings={() => setView(view === "settings" ? "home" : "settings")} settingsLabel={tr("settings")} />
+      <Titlebar
+        onSettings={() => setView(view === "settings" ? "home" : "settings")}
+        settingsLabel={tr("settings")}
+        needsPermissions={!!(perms && perms.platform === "macos" && !perms.all_granted)}
+      />
 
       {view === "settings" ? (
         <Settings
@@ -514,18 +552,18 @@ export default function App() {
       ) : (
         <main className="home">
           {perms && perms.platform === "macos" && !perms.all_granted && (
-            <section className="perm-banner">
-              <p>{tr("permNeeded")}</p>
-              <button
-                className="primary"
-                onClick={() => {
-                  setSettingsTab("permissions");
-                  setView("settings");
-                }}
-              >
-                {tr("permGoSettings")}
-              </button>
-            </section>
+            <PermHomeBanner
+              locale={locale}
+              perms={perms}
+              onFixNext={() => {
+                const next = nextPermKind(perms);
+                if (next) void openPermKind(next).then(() => fetchPermissions().then(setPerms));
+              }}
+              onViewAll={() => {
+                setSettingsTab("permissions");
+                setView("settings");
+              }}
+            />
           )}
           <header className="hero">
             <Logo size={28} />
@@ -682,90 +720,69 @@ export default function App() {
       {toast && view !== "settings" && snap.phase !== "connected" && <div className="toast">{toast}</div>}
 
       {passwordStep && (
-        <div className="overlay">
-          <div className="modal">
-            <p className="eyebrow">{tr("connect")}</p>
-            <h3>{connectId}</h3>
-            <p className="muted">{tr("enterTempPassword")}</p>
-            <input
-              autoFocus
-              value={connectPassword}
-              onChange={(e) => setConnectPassword(e.target.value.toUpperCase())}
-              placeholder={tr("password")}
-              onKeyDown={(e) => e.key === "Enter" && void confirmConnect()}
-            />
-            {error && <p className="error">{error}</p>}
-            <div className="modal-actions">
-              <button onClick={() => setPasswordStep(false)}>{tr("cancel")}</button>
-              <button className="primary" onClick={() => void confirmConnect()}>
-                {tr("continue")}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConnectPasswordModal
+          locale={locale}
+          deviceId={connectId}
+          password={connectPassword}
+          error={error}
+          onPasswordChange={setConnectPassword}
+          onCancel={() => setPasswordStep(false)}
+          onConfirm={() => void confirmConnect()}
+        />
       )}
 
       {snap.phase === "connecting" && (
-        <div className="overlay connecting">
-          <Logo size={36} />
-          <p className="eyebrow">RemoteX</p>
-          <h2>{tr("connecting")}</h2>
-          <p>{snap.session?.peer_name ?? tr("remoteDevice")}</p>
-          <div className="link-graph">
-            <span>{tr("you")}</span>
-            <i />
-            <b />
-            <i />
-            <span>{snap.session?.peer_name ?? tr("peer")}</span>
-          </div>
-          <ul className="steps">
-            {(["stepFind", "stepHandshake", "stepP2p", "stepVideo"] as const).map((key, index) => (
-              <li key={key} className={connectStep > index ? "done" : connectStep === index ? "active" : ""}>
-                <span>{connectStep > index ? "✓" : "●"}</span>
-                {tr(key)}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ConnectFlowOverlay
+          locale={locale}
+          peerName={snap.session?.peer_name ?? tr("remoteDevice")}
+          connectStep={connectStep}
+          onCancel={() =>
+            run(() =>
+              isTauri()
+                ? invoke("hangup")
+                : Promise.resolve(setSnap({ ...snap, phase: "idle", session: null })),
+            )
+          }
+        />
       )}
 
       {snap.phase === "incoming" && snap.incoming && (
-        <div className="overlay">
-          <div className="modal">
-            <p className="eyebrow">{tr("incomingTitle")}</p>
-            <h3>{snap.incoming.from_name}</h3>
-            <p>{tr("incomingBody")}</p>
-            <div className="modal-actions">
-              <button onClick={() => run(() => isTauri() ? invoke("decline") : Promise.resolve(setSnap({ ...snap, phase: "idle", incoming: null })))}>
-                {tr("decline")}
-              </button>
-              <button className="primary" onClick={() => run(async () => {
-                if (isTauri()) {
-                  await invoke("accept");
-                  return;
-                }
-                setSnap((prev) => ({
-                  ...prev,
-                  phase: "connected",
-                  incoming: null,
-                  session: {
-                    session_id: "preview",
-                    peer_id: prev.incoming?.from_id ?? "391285663",
-                    peer_name: prev.incoming?.from_name ?? "Office PC",
-                    peer_os: prev.incoming?.from_os ?? "windows",
-                    rtt_ms: 36,
-                    down_kbps: 8420,
-                    up_kbps: 186,
-                    path: "p2p",
-                    quality: prev.settings.quality,
-                  },
-                }));
-              })}>
-                {tr("accept")}
-              </button>
-            </div>
-          </div>
-        </div>
+        <IncomingConnectModal
+          locale={locale}
+          fromName={snap.incoming.from_name}
+          fromOs={snap.incoming.from_os}
+          onDecline={() =>
+            run(() =>
+              isTauri()
+                ? invoke("decline")
+                : Promise.resolve(setSnap({ ...snap, phase: "idle", incoming: null })),
+            )
+          }
+          onAccept={() =>
+            run(async () => {
+              if (isTauri()) {
+                await invoke("accept");
+                return;
+              }
+              setSnap((prev) => ({
+                ...prev,
+                phase: "connected",
+                incoming: null,
+                session: {
+                  session_id: "preview",
+                  peer_id: prev.incoming?.from_id ?? "391285663",
+                  peer_name: prev.incoming?.from_name ?? "Office PC",
+                  peer_os: prev.incoming?.from_os ?? "windows",
+                  rtt_ms: 36,
+                  down_kbps: 8420,
+                  up_kbps: 186,
+                  path: "p2p",
+                  quality: prev.settings.quality,
+                },
+              }));
+            })
+          }
+        />
       )}
     </div>
   );
@@ -776,11 +793,13 @@ function Titlebar({
   compact,
   subtitle,
   settingsLabel,
+  needsPermissions,
 }: {
   onSettings: () => void;
   compact?: boolean;
   subtitle?: string;
   settingsLabel?: string;
+  needsPermissions?: boolean;
 }) {
   return (
     <div className="titlebar" data-tauri-drag-region>
@@ -790,8 +809,15 @@ function Titlebar({
         {subtitle && <span className="muted">{subtitle}</span>}
       </div>
       {!compact && (
-        <button className="icon-btn" onClick={onSettings} title={settingsLabel ?? "Settings"}>
-          ⚙
+        <button
+          type="button"
+          className={`settings-btn${needsPermissions ? " needs-perm" : ""}`}
+          onClick={onSettings}
+          title={settingsLabel ?? "Settings"}
+        >
+          <span className="settings-btn-icon" aria-hidden>⚙</span>
+          <span>{settingsLabel ?? "Settings"}</span>
+          {needsPermissions && <span className="settings-alert" aria-hidden />}
         </button>
       )}
     </div>
@@ -862,7 +888,10 @@ function Settings({
         <nav className="settings-nav">
           {tabs.map((item) => (
             <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
-              {tr(item.key)}
+              <span>{tr(item.key)}</span>
+              {item.id === "permissions" && perms && perms.platform === "macos" && !perms.all_granted && (
+                <span className="nav-badge">{3 - grantedPermCount(perms)}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -976,80 +1005,7 @@ function Settings({
           )}
 
           {tab === "permissions" && (
-            <section className="card permissions">
-              <p className="pane-title">{tr("systemPermissions")}</p>
-              <p className="hint">{tr("permHint")}</p>
-              {perms?.all_granted ? (
-                <p className="perm-ready">{tr("permReady")}</p>
-              ) : (
-                <div className="perm-guide">
-                  <p className="label">{tr("permGuideTitle")}</p>
-                  <ol>
-                    <li>{tr("permStep1")}</li>
-                    <li>{tr("permStep2")}</li>
-                    <li>{tr("permStep3")}</li>
-                  </ol>
-                  <p className="hint">{tr("permRestart")}</p>
-                </div>
-              )}
-              <PermRow
-                locale={locale}
-                title={tr("screenRecording")}
-                why={tr("permWhyScreen")}
-                state={perms?.screen_recording ?? "unknown"}
-                actions={
-                  <>
-                    <button
-                      type="button"
-                      className="ghost perm-action"
-                      onClick={() => isTauri() && void invoke("request_screen_recording")}
-                    >
-                      {tr("permRequestScreen")}
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost perm-action"
-                      onClick={() => isTauri() && void invoke("open_permission_panel", { kind: "screen_recording" })}
-                    >
-                      {tr("permOpen")}
-                    </button>
-                  </>
-                }
-              />
-              <PermRow
-                locale={locale}
-                title={tr("accessibility")}
-                why={tr("permWhyAccessibility")}
-                state={perms?.accessibility ?? "unknown"}
-                actions={
-                  <button
-                    type="button"
-                    className="ghost perm-action"
-                    onClick={() => isTauri() && void invoke("open_permission_panel", { kind: "accessibility" })}
-                  >
-                    {tr("permOpen")}
-                  </button>
-                }
-              />
-              <PermRow
-                locale={locale}
-                title={tr("inputMonitoring")}
-                why={tr("permWhyInput")}
-                state={perms?.input_monitoring ?? "unknown"}
-                actions={
-                  <button
-                    type="button"
-                    className="ghost perm-action"
-                    onClick={() => isTauri() && void invoke("open_permission_panel", { kind: "input_monitoring" })}
-                  >
-                    {tr("permOpen")}
-                  </button>
-                }
-              />
-              <button type="button" className="primary perm-btn" onClick={onRefreshPerms}>
-                {tr("permRefresh")}
-              </button>
-            </section>
+            <PermissionsPanel locale={locale} perms={perms} onRefresh={onRefreshPerms} />
           )}
 
           {tab === "about" && (
@@ -1070,22 +1026,152 @@ function Settings({
   );
 }
 
+function PermHomeBanner({
+  locale,
+  perms,
+  onFixNext,
+  onViewAll,
+}: {
+  locale: Locale;
+  perms: PermissionsStatus;
+  onFixNext: () => void;
+  onViewAll: () => void;
+}) {
+  const tr = (key: MessageKey) => t(locale, key);
+  const next = nextPermKind(perms);
+  const done = grantedPermCount(perms);
+  const nextItem = next ? permItems(perms).find((p) => p.kind === next) : null;
+
+  return (
+    <section className="perm-banner perm-banner-smart">
+      <div className="perm-banner-copy">
+        <p className="perm-banner-title">{tr("permBannerTitle")}</p>
+        <p className="muted">{tr("permNeeded")}</p>
+        <div className="perm-chip-row">
+          {permItems(perms).map((item) => (
+            <span key={item.kind} className={`perm-chip ${item.state === "granted" ? "ok" : item.kind === next ? "next" : ""}`}>
+              {tr(item.titleKey)}
+            </span>
+          ))}
+        </div>
+        <div className="perm-progress">
+          <span>{tr("permProgress").replace("{done}", String(done)).replace("{total}", "3")}</span>
+          <div className="perm-progress-bar"><span style={{ width: `${(done / 3) * 100}%` }} /></div>
+        </div>
+      </div>
+      <div className="perm-banner-actions">
+        {nextItem && (
+          <button type="button" className="primary" onClick={onFixNext}>
+            {tr("permFixNext")}: {tr(nextItem.titleKey)}
+          </button>
+        )}
+        <button type="button" className="ghost perm-view-all" onClick={onViewAll}>
+          {tr("permViewAll")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function PermissionsPanel({
+  locale,
+  perms,
+  onRefresh,
+}: {
+  locale: Locale;
+  perms: PermissionsStatus | null;
+  onRefresh: () => void;
+}) {
+  const tr = (key: MessageKey) => t(locale, key);
+  const next = perms ? nextPermKind(perms) : null;
+  const done = perms ? grantedPermCount(perms) : 0;
+
+  return (
+    <section className="card permissions">
+      <p className="pane-title">{tr("systemPermissions")}</p>
+      <p className="hint">{tr("permHint")}</p>
+      {perms?.all_granted ? (
+        <p className="perm-ready">{tr("permReady")}</p>
+      ) : (
+        <div className="perm-wizard">
+          <div className="perm-progress">
+            <span>{tr("permProgress").replace("{done}", String(done)).replace("{total}", "3")}</span>
+            <div className="perm-progress-bar"><span style={{ width: `${(done / 3) * 100}%` }} /></div>
+          </div>
+          {next && (
+            <>
+              <p className="perm-wizard-step">{tr("permCurrentStep")}</p>
+              <p className="perm-wizard-lead">
+                {tr(permItems(perms!).find((p) => p.kind === next)!.titleKey)} —{" "}
+                {tr(permItems(perms!).find((p) => p.kind === next)!.whyKey)}
+              </p>
+              <button
+                type="button"
+                className="primary perm-wizard-cta"
+                onClick={() => void openPermKind(next).then(onRefresh)}
+              >
+                {tr("permOpenNow")}
+              </button>
+            </>
+          )}
+          <p className="hint">{tr("permRestart")}</p>
+        </div>
+      )}
+      {permItems(perms ?? mockPermissions()).map((item, index) => (
+        <PermRow
+          key={item.kind}
+          locale={locale}
+          step={index + 1}
+          highlight={item.kind === next}
+          title={tr(item.titleKey)}
+          why={tr(item.whyKey)}
+          state={item.state}
+          actions={
+            item.kind === "screen_recording" ? (
+              <>
+                <button type="button" className="ghost perm-action" onClick={() => isTauri() && void invoke("request_screen_recording")}>
+                  {tr("permRequestScreen")}
+                </button>
+                <button type="button" className="ghost perm-action" onClick={() => void openPermKind(item.kind).then(onRefresh)}>
+                  {tr("permOpen")}
+                </button>
+              </>
+            ) : (
+              <button type="button" className="ghost perm-action" onClick={() => void openPermKind(item.kind).then(onRefresh)}>
+                {tr("permOpen")}
+              </button>
+            )
+          }
+        />
+      ))}
+      <button type="button" className="primary perm-btn" onClick={onRefresh}>
+        {tr("permRefresh")}
+      </button>
+    </section>
+  );
+}
+
 function PermRow({
   locale,
   title,
   why,
   state,
   actions,
+  highlight,
+  step,
 }: {
   locale: Locale;
   title: string;
   why: string;
   state: string;
   actions: ReactNode;
+  highlight?: boolean;
+  step?: number;
 }) {
   return (
-    <div className="perm-row">
+    <div className={`perm-row${highlight ? " perm-row-next" : ""}${state === "granted" ? " perm-row-done" : ""}`}>
       <div className="perm-main">
+        {step ? <span className="perm-step">{step}</span> : null}
         <span className={`dot ${permDotClass(state)}`} />
         <div>
           <strong>{title}</strong>
@@ -1120,6 +1206,199 @@ function Toggle({
         aria-label={label}
         onClick={() => onChange(!checked)}
       />
+    </div>
+  );
+}
+
+const CONNECT_STEPS = ["stepFind", "stepHandshake", "stepP2p", "stepVideo"] as const;
+const CONNECT_STEP_STATUS = ["stepStatusFind", "stepStatusHandshake", "stepStatusP2p", "stepStatusVideo"] as const;
+
+function ConnectPasswordModal({
+  locale,
+  deviceId,
+  password,
+  error,
+  onPasswordChange,
+  onCancel,
+  onConfirm,
+}: {
+  locale: Locale;
+  deviceId: string;
+  password: string;
+  error: string;
+  onPasswordChange: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const tr = (key: MessageKey) => t(locale, key);
+
+  return (
+    <div className="overlay connect-overlay">
+      <div className="connect-modal">
+        <div className="connect-modal-glow" aria-hidden />
+        <div className="connect-modal-head">
+          <div className="connect-modal-badge">
+            <span className="connect-lock" aria-hidden>🔒</span>
+            <span>{tr("connectSecureLink")}</span>
+          </div>
+          <p className="connect-modal-kicker">{tr("connectVerify")}</p>
+        </div>
+        <div className="connect-device-card">
+          <span className="connect-device-icon" aria-hidden>▣</span>
+          <div>
+            <p className="connect-device-label">{tr("connectTo")}</p>
+            <h3>{deviceId}</h3>
+          </div>
+        </div>
+        <p className="connect-modal-hint">{tr("enterTempPassword")}</p>
+        <label className="connect-input-wrap">
+          <span>{tr("password")}</span>
+          <input
+            autoFocus
+            className="connect-input"
+            value={password}
+            onChange={(e) => onPasswordChange(e.target.value.toUpperCase())}
+            placeholder="••••••"
+            onKeyDown={(e) => e.key === "Enter" && onConfirm()}
+          />
+        </label>
+        {error && <p className="error">{error}</p>}
+        <div className="connect-modal-actions">
+          <button type="button" onClick={onCancel}>{tr("cancel")}</button>
+          <button type="button" className="primary" onClick={onConfirm}>{tr("continue")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConnectFlowOverlay({
+  locale,
+  peerName,
+  connectStep,
+  onCancel,
+}: {
+  locale: Locale;
+  peerName: string;
+  connectStep: number;
+  onCancel: () => void;
+}) {
+  const tr = (key: MessageKey) => t(locale, key);
+  const activeIndex = Math.max(0, connectStep - 1);
+  const progress = Math.min(100, Math.round((connectStep / CONNECT_STEPS.length) * 100));
+  const statusKey = CONNECT_STEP_STATUS[Math.min(activeIndex, CONNECT_STEP_STATUS.length - 1)];
+
+  return (
+    <div className="overlay connect-flow">
+      <div className="connect-flow-grid" aria-hidden />
+      <div className="connect-flow-panel">
+        <header className="connect-flow-head">
+          <div className="connect-flow-brand">
+            <Logo size={28} />
+            <div>
+              <p className="connect-flow-kicker">RemoteX</p>
+              <h2>{tr("connecting")}</h2>
+            </div>
+          </div>
+          <div className="connect-flow-meter" aria-hidden>
+            <svg viewBox="0 0 44 44">
+              <circle className="connect-flow-ring-bg" cx="22" cy="22" r="18" />
+              <circle
+                className="connect-flow-ring"
+                cx="22"
+                cy="22"
+                r="18"
+                style={{ strokeDashoffset: `${113 - (113 * progress) / 100}` }}
+              />
+            </svg>
+            <strong>{progress}%</strong>
+          </div>
+        </header>
+
+        <div className="connect-flow-orbit">
+          <div className="connect-node local">
+            <span className="connect-node-ring" aria-hidden />
+            <span className="connect-node-icon">⌘</span>
+            <span className="connect-node-label">{tr("you")}</span>
+          </div>
+          <div className="connect-link-track">
+            <div className="connect-link-beam" style={{ width: `${progress}%` }} />
+            <span className="connect-link-dot" style={{ left: `${Math.max(8, Math.min(92, progress))}%` }} />
+            <span className="connect-link-scan" aria-hidden />
+          </div>
+          <div className="connect-node remote">
+            <span className="connect-node-ring" aria-hidden />
+            <span className="connect-node-icon">▣</span>
+            <span className="connect-node-label">{peerName}</span>
+          </div>
+        </div>
+
+        <p className="connect-flow-status">{tr(statusKey)}</p>
+
+        <ol className="connect-flow-steps">
+          {CONNECT_STEPS.map((key, index) => {
+            const done = connectStep > index + 1;
+            const active = connectStep === index + 1;
+            return (
+              <li key={key} className={`${done ? "done" : ""}${active ? " active" : ""}`}>
+                <span className="connect-step-dot">{done ? "✓" : index + 1}</span>
+                <div className="connect-step-copy">
+                  <strong>{tr(key)}</strong>
+                  <span>{tr(CONNECT_STEP_STATUS[index])}</span>
+                </div>
+                <span className="connect-step-tag">
+                  {done ? tr("connectLinkReady") : active ? tr("connecting") : "—"}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+
+        <button type="button" className="connect-flow-cancel" onClick={onCancel}>
+          {tr("connectCancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function IncomingConnectModal({
+  locale,
+  fromName,
+  fromOs,
+  onDecline,
+  onAccept,
+}: {
+  locale: Locale;
+  fromName: string;
+  fromOs: string;
+  onDecline: () => void;
+  onAccept: () => void;
+}) {
+  const tr = (key: MessageKey) => t(locale, key);
+
+  return (
+    <div className="overlay connect-overlay">
+      <div className="connect-modal incoming-modal">
+        <div className="connect-modal-glow incoming-glow" aria-hidden />
+        <div className="connect-radar" aria-hidden>
+          <span /><span /><span />
+        </div>
+        <p className="connect-modal-kicker">{tr("incomingSecure")}</p>
+        <h2>{tr("incomingTitle")}</h2>
+        <div className="connect-device-card incoming-device">
+          <span className="connect-device-icon">{fromOs === "macos" ? "⌘" : "▣"}</span>
+          <div>
+            <p className="connect-device-label">{tr("incomingFrom")}</p>
+            <h3>{fromName}</h3>
+          </div>
+        </div>
+        <p className="connect-modal-hint">{fromName} {tr("incomingBody")}</p>
+        <div className="connect-modal-actions incoming-actions">
+          <button type="button" onClick={onDecline}>{tr("decline")}</button>
+          <button type="button" className="primary" onClick={onAccept}>{tr("accept")}</button>
+        </div>
+      </div>
     </div>
   );
 }
