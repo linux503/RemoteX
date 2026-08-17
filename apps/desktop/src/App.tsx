@@ -329,6 +329,14 @@ export default function App() {
               {snap.ready ? tr("ready") : tr("connectingNetwork")}
               {snap.ready && snap.rtt_ms > 0 ? ` · ${snap.rtt_ms}ms` : ""}
             </div>
+            {snap.lan_url && (
+              <p className="lan-url">
+                <span>{tr("lanHint")}</span>
+                <button type="button" className="lan-copy" onClick={() => copy("LAN", snap.lan_url)}>
+                  {copied === "LAN" ? "✓" : snap.lan_url}
+                </button>
+              </p>
+            )}
             <p className="label">{tr("tempPassword")}</p>
             <div className="password-row">
               <strong>{hidePassword ? "• • • • • •" : snap.formatted_password}</strong>
@@ -591,6 +599,8 @@ function Settings({
               onChange={(e) => onSettings({ signaling_url: e.target.value })}
             />
           </label>
+          <p className="muted">{tr("signalingHint")}</p>
+          {snap.lan_url && <p className="muted">{snap.lan_url}</p>}
           <p className="muted">{tr("connection")}: {snap.ready ? tr("online") : tr("offline")}</p>
         </section>
       )}

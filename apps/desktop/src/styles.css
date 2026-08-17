@@ -152,6 +152,27 @@ button { cursor: pointer; }
 }
 .status.offline .dot, .dot.offline { background: var(--warn); }
 
+.lan-url {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.lan-copy {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: rgba(255, 59, 85, 0.06);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
 .password-row, .connect-row, .id-row, .recent-item, .toggle, .modal-actions, .titlebar-label {
   display: flex;
   align-items: center;

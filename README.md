@@ -6,8 +6,7 @@
 
 下载：[GitHub Releases](https://github.com/linux503/RemoteX/releases)
 
-- macOS Apple Silicon: `RemoteX_0.2.0_aarch64.dmg`
-- macOS Intel: `RemoteX_0.2.0_x64.dmg`
+- macOS（Intel + Apple Silicon 通用包）: `RemoteX_0.2.0_universal.dmg`
 - Windows: `RemoteX_0.2.0_x64-setup.exe`
 
 ## Run locally

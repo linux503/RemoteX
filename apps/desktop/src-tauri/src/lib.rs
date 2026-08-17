@@ -157,6 +157,17 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async {
+                let addr = std::net::SocketAddr::from(([0, 0, 0, 0], protocol::DEFAULT_SIGNALING_PORT));
+                match signaling::serve(addr).await {
+                    Ok(()) => {}
+                    Err(err) => tracing::info!("using existing signaling: {err}"),
+                }
+            });
+            std::thread::sleep(std::time::Duration::from_millis(120));
+            if signaling::HOSTING.load(std::sync::atomic::Ordering::SeqCst) {
+                remotex_core::HOSTING.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
             let (state, mut events) = tauri::async_runtime::block_on(async {
                 AppState::bootstrap()
                     .await

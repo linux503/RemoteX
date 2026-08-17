@@ -57,6 +57,8 @@ export interface Snapshot {
   ready: boolean;
   rtt_ms: number;
   signaling_url: string;
+  lan_url: string;
+  hosting: boolean;
   phase: SessionPhase;
   session: SessionView | null;
   incoming: IncomingView | null;
@@ -94,6 +96,8 @@ export const mockSnapshot = (): Snapshot => ({
   ready: true,
   rtt_ms: 18,
   signaling_url: "ws://127.0.0.1:7829/ws",
+  lan_url: "ws://192.168.1.18:7829/ws",
+  hosting: true,
   phase: "idle",
   session: null,
   incoming: null,

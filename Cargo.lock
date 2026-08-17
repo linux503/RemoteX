@@ -3051,6 +3051,7 @@ dependencies = [
  "remotex-input",
  "serde",
  "serde_json",
+ "signaling",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
