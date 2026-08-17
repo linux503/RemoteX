@@ -6,7 +6,8 @@
     <title>RemoteX</title>
     <script>
       if (new URLSearchParams(location.search).has("scene")) {
-        document.documentElement.style.colorScheme = "dark";
+        const theme = new URLSearchParams(location.search).get("theme");
+        document.documentElement.style.colorScheme = theme === "dark" ? "dark" : "light";
       }
     </script>
   </head>

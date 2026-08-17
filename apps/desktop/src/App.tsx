@@ -95,7 +95,8 @@ export default function App() {
     const theme = snap.settings.theme;
     const root = document.documentElement;
     if (previewScene) {
-      root.dataset.theme = "dark";
+      const themeParam = new URLSearchParams(window.location.search).get("theme");
+      root.dataset.theme = themeParam === "dark" ? "dark" : "light";
       return;
     }
     if (theme === "light" || theme === "dark") {

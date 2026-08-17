@@ -27,6 +27,6 @@ REMOTEX_DATA_DIR=/tmp/remotex-a npm run tauri dev
 REMOTEX_DATA_DIR=/tmp/remotex-b npm run tauri dev
 ```
 
-## v0.2
+## v0.2.2
 
-新色系、局域网自动发现、Windows 安装包、GitHub 官网。
+局域网自动发现、真实 macOS 权限引导、Windows 安装包。
