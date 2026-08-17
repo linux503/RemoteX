@@ -168,6 +168,8 @@ function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) 
       >
         {src ? (
           <img className="remote-frame in" src={src} alt="" draggable={false} />
+        ) : previewScene === "session" ? (
+          <PreviewRemoteScreen locale={locale} />
         ) : (
           <div className="desktop-wait">
             <span className="wait-spin" aria-hidden />
@@ -237,6 +239,7 @@ export default function App() {
     if (previewScene) {
       const themeParam = new URLSearchParams(window.location.search).get("theme");
       root.dataset.theme = themeParam === "dark" ? "dark" : "light";
+      root.dataset.preview = previewScene;
       return;
     }
     if (theme === "light" || theme === "dark") {
@@ -469,7 +472,9 @@ export default function App() {
   if (snap.phase === "connected" && snap.session) {
     return (
       <div className="app session-app">
-        <Titlebar onSettings={() => setView("settings")} compact />
+        {previewScene !== "session" && (
+          <Titlebar onSettings={() => setView("settings")} compact />
+        )}
         <div
           className="session-stage"
           onMouseMove={bumpChrome}
@@ -812,6 +817,59 @@ function Titlebar({
           {needsPermissions && <span className="settings-alert" aria-hidden />}
         </button>
       )}
+    </div>
+  );
+}
+
+function PreviewRemoteScreen({ locale }: { locale: Locale }) {
+  const zh = locale === "zh";
+  return (
+    <div className="preview-desktop" aria-hidden>
+      <div className="preview-menubar">
+        <b>{zh ? "访达" : "Finder"}</b>
+        <span>{zh ? "文件" : "File"}</span>
+        <span>{zh ? "编辑" : "Edit"}</span>
+        <span>{zh ? "显示" : "View"}</span>
+        <span>{zh ? "前往" : "Go"}</span>
+        <em>{zh ? "周二 22:42" : "Tue 10:42 PM"}</em>
+      </div>
+      <div className="preview-icons">
+        <div>
+          <i />
+          <span>{zh ? "文稿" : "Documents"}</span>
+        </div>
+        <div>
+          <i />
+          <span>{zh ? "下载" : "Downloads"}</span>
+        </div>
+        <div>
+          <i />
+          <span>{zh ? "项目" : "Projects"}</span>
+        </div>
+      </div>
+      <article className="preview-win files">
+        <header>
+          <i /><i /><i />
+          <strong>{zh ? "文稿" : "Documents"}</strong>
+        </header>
+        <ul>
+          <li>{zh ? "季度报告.xlsx" : "Q3 Report.xlsx"}</li>
+          <li>{zh ? "客户名单.csv" : "Clients.csv"}</li>
+          <li>RemoteX.dmg</li>
+          <li>{zh ? "设计稿.fig" : "Landing.fig"}</li>
+        </ul>
+      </article>
+      <article className="preview-win notes">
+        <header>
+          <i /><i /><i />
+          <strong>Notes</strong>
+        </header>
+        <p>{zh ? "远程已连接，画面同步中。" : "Remote session is live."}</p>
+        <p>{zh ? "直连 P2P · 36 ms" : "Direct P2P · 36 ms"}</p>
+      </article>
+      <div className="preview-dock">
+        <span /><span /><span /><span /><span />
+      </div>
     </div>
   );
 }

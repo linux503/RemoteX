@@ -31,7 +31,7 @@ for lang in en zh; do
   capture "$out_dir/connecting.png" 520 780 "$BASE_APP/?scene=connecting&lang=$lang&theme=light"
   capture "$out_dir/incoming.png" 520 780 "$BASE_APP/?scene=incoming&lang=$lang&theme=light"
   capture "$out_dir/settings.png" 520 780 "$BASE_APP/?scene=settings&lang=$lang&theme=light"
-  capture "$out_dir/session.png" 1080 720 "$BASE_APP/?scene=session&lang=$lang&theme=light"
+  capture "$out_dir/session.png" 1080 720 "$BASE_APP/?scene=session&lang=$lang&theme=dark"
 done
 
 DOC_PID=""

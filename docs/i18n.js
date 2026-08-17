@@ -174,7 +174,7 @@ function applyLang(lang) {
   });
   document.querySelectorAll("[data-i18n-src]").forEach((el) => {
     const key = el.getAttribute("data-i18n-src");
-    if (key) el.src = `./shots/${lang}/${key}.png`;
+    if (key) el.src = `./shots/${lang}/${key}.png?v=20260817b`;
   });
   setMeta('meta[property="og:image"]', "content", `${SITE}og-${lang}.png`);
   setMeta('meta[name="twitter:image"]', "content", `${SITE}og-${lang}.png`);
