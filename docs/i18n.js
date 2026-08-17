@@ -1,3 +1,5 @@
+const SITE = "https://linux503.github.io/RemoteX/";
+
 const copy = {
   en: {
     navProduct: "Product",
@@ -28,6 +30,7 @@ const copy = {
     shotSessionDesc: "Latency, download, upload, Direct P2P — visible the moment you connect.",
     shotConfirm: "Confirm",
     shotConfirmDesc: "When someone wants to control this computer, accept first.",
+    featuresTitle: "Built to connect in one breath.",
     f1t: "No Account",
     f1d: "No login page. ID and password are everything.",
     f2t: "Cross-platform",
@@ -47,8 +50,11 @@ const copy = {
     macFixDesc: "Unsigned GitHub builds get quarantined by Chrome. Drag RemoteX into Applications, then paste this in Terminal:",
     copyCmd: "Copy",
     copiedCmd: "Copied",
-    title: "RemoteX — Fast Remote Desktop",
-    description: "No account. No setup. Just connect. Windows and macOS remote desktop.",
+    footerTag: "RemoteX v0.2 · Fast Remote Desktop",
+    title: "RemoteX — Fast Remote Desktop for Windows & macOS",
+    seoTitle: "RemoteX — Fast Remote Desktop | 极速远程桌面",
+    description: "No account. No setup. Just connect. RemoteX is a fast P2P remote desktop for Windows and macOS — copy a device ID and connect in seconds.",
+    locale: "en_US",
   },
   zh: {
     navProduct: "产品",
@@ -63,8 +69,8 @@ const copy = {
     note: "无需账号。无需配置。直接连接。",
     altHome: "RemoteX 首页 — 设备码和临时密码",
     altConnecting: "正在连接",
-    altSession: "远程会话，显示延迟和速度",
     altIncoming: "连接请求确认",
+    altSession: "远程会话，显示延迟和速度",
     m1: "无需账号",
     m2: "P2P 优先",
     m4: "Windows ↔ macOS",
@@ -79,6 +85,7 @@ const copy = {
     shotSessionDesc: "延迟、下载、上传、直连 P2P，连上就能看见。",
     shotConfirm: "确认",
     shotConfirmDesc: "对方要控制这台电脑时，先接受，再开始。",
+    featuresTitle: "一口气连上，少一步都不要。",
     f1t: "无需账号",
     f1d: "没有登录页。ID 和密码就是全部。",
     f2t: "跨平台",
@@ -98,10 +105,18 @@ const copy = {
     macFixDesc: "从浏览器下载的未公证应用会被隔离。先把 RemoteX 拖进「应用程序」，再把下面命令粘贴到终端回车：",
     copyCmd: "复制",
     copiedCmd: "已复制",
-    title: "RemoteX — 极速远程桌面",
-    description: "无需注册，无需登录。输入设备码即可远程连接。Windows 与 macOS 跨平台远程桌面。",
+    footerTag: "RemoteX v0.2 · 极速远程桌面",
+    title: "RemoteX — 极速远程桌面，Windows 与 macOS 跨平台",
+    seoTitle: "RemoteX — 极速远程桌面 | Fast Remote Desktop",
+    description: "无需注册，无需登录。RemoteX 是面向 Windows 与 macOS 的极速 P2P 远程桌面，复制设备码即可连接。",
+    locale: "zh_CN",
   },
 };
+
+function setMeta(selector, attr, value) {
+  const el = document.querySelector(selector);
+  if (el && value) el.setAttribute(attr, value);
+}
 
 function detectLang() {
   const params = new URLSearchParams(location.search).get("lang");
@@ -113,10 +128,28 @@ function detectLang() {
 
 function applyLang(lang) {
   const dict = copy[lang] || copy.en;
+  const pageUrl = `${SITE}?lang=${lang}`;
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
-  document.title = dict.title;
-  const meta = document.querySelector('meta[name="description"]');
-  if (meta) meta.setAttribute("content", dict.description);
+  document.title = dict.seoTitle;
+  setMeta('meta[name="description"]', "content", dict.description);
+  setMeta('meta[property="og:title"]', "content", dict.seoTitle);
+  setMeta('meta[property="og:description"]', "content", dict.description);
+  setMeta('meta[property="og:locale"]', "content", dict.locale);
+  setMeta('meta[property="og:url"]', "content", pageUrl);
+  setMeta('meta[name="twitter:title"]', "content", dict.seoTitle);
+  setMeta('meta[name="twitter:description"]', "content", dict.description);
+  const canonical = document.getElementById("canonical");
+  if (canonical) canonical.setAttribute("href", pageUrl);
+  const jsonld = document.getElementById("jsonld");
+  if (jsonld) {
+    try {
+      const data = JSON.parse(jsonld.textContent);
+      data.description = dict.description;
+      data.inLanguage = lang === "zh" ? "zh-CN" : "en";
+      data.url = pageUrl;
+      jsonld.textContent = JSON.stringify(data);
+    } catch (_) {}
+  }
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
     if (dict[key]) el.textContent = dict[key];
