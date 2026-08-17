@@ -6,8 +6,8 @@
 
 下载：[GitHub Releases](https://github.com/linux503/RemoteX/releases)
 
-- macOS：`RemoteX_0.2.1_universal.dmg`，拖进「应用程序」再打开
-- Windows：`RemoteX_0.2.1_x64-setup.exe`，当前用户安装，无需管理员
+- macOS：`RemoteX_0.2.2_universal.dmg`，拖进「应用程序」再打开
+- Windows：`RemoteX_0.2.2_x64-setup.exe`，当前用户安装，无需管理员
 
 同一 Wi-Fi 下，两边都打开 RemoteX，输入对方设备码和临时密码即可连接。首页会列出附近设备。
 

@@ -38,7 +38,12 @@ jobs:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
           releaseName: RemoteX ${{ github.ref_name }}
-          releaseBody: "RemoteX for macOS (universal DMG) and Windows (NSIS, current user, no admin)."
+          releaseBody: |
+            ## RemoteX v0.2.2
+            - Real macOS permission checks and setup guide
+            - Wi-Fi auto-discovery (correct LAN IP, not VPN 198.18)
+            - Same Wi-Fi: enter device ID to connect
+            - macOS universal DMG + Windows NSIS installer
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
