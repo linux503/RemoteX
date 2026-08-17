@@ -83,6 +83,7 @@ export interface Snapshot {
   unattended: boolean;
   has_permanent_password: boolean;
   last_error: string | null;
+  is_host: boolean;
 }
 
 export const defaultSettings = (): AppSettings => ({
@@ -139,6 +140,7 @@ export const mockSnapshot = (): Snapshot => ({
   unattended: false,
   has_permanent_password: false,
   last_error: null,
+  is_host: false,
 });
 
 export function previewSnapshot(scene: string | null): Snapshot {

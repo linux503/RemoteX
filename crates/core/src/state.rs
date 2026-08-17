@@ -47,6 +47,7 @@ pub struct Snapshot {
     pub unattended: bool,
     pub has_permanent_password: bool,
     pub last_error: Option<String>,
+    pub is_host: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -98,6 +99,7 @@ pub struct AppState {
     media: Option<MediaHandle>,
     host_screen: Arc<Mutex<(u32, u32)>>,
     frame_tx: mpsc::Sender<RemoteFrame>,
+    latest_frame: Arc<std::sync::Mutex<Option<RemoteFrame>>>,
 }
 
 impl AppState {
@@ -112,7 +114,8 @@ impl AppState {
         let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(64);
         let (in_tx, mut in_rx) = mpsc::channel::<ServerMsg>(64);
         let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(64);
-        let (frame_tx, mut frame_rx) = mpsc::channel::<RemoteFrame>(4);
+        let (frame_tx, mut frame_rx) = mpsc::channel::<RemoteFrame>(32);
+        let latest_frame = Arc::new(std::sync::Mutex::new(None));
 
         let register = ClientMsg::register(&DeviceInfo {
             id: identity.device_id.clone(),
@@ -141,6 +144,7 @@ impl AppState {
             media: None,
             host_screen: Arc::new(Mutex::new(media::primary_screen_size())),
             frame_tx: frame_tx.clone(),
+            latest_frame: latest_frame.clone(),
         }));
 
         let client = SignalingClient::new(settings.signaling_url.clone());
@@ -188,8 +192,10 @@ impl AppState {
         });
 
         let frame_events = evt_tx.clone();
+        let latest = latest_frame.clone();
         tokio::spawn(async move {
             while let Some(frame) = frame_rx.recv().await {
+                *latest.lock().unwrap() = Some(frame.clone());
                 let _ = frame_events.send(AppEvent::Frame(frame)).await;
             }
         });
@@ -219,7 +225,16 @@ impl AppState {
             unattended: self.settings.unattended,
             has_permanent_password: self.passwords.has_permanent(),
             last_error: self.last_error.clone(),
+            is_host: self.session_role == Some(SessionRole::Host),
         }
+    }
+
+    pub fn latest_frame(&self) -> Option<RemoteFrame> {
+        self.latest_frame.lock().unwrap().clone()
+    }
+
+    fn clear_frame(&mut self) {
+        *self.latest_frame.lock().unwrap() = None;
     }
 
     pub async fn snapshot_async(&self) -> Snapshot {
@@ -382,6 +397,7 @@ impl AppState {
         if let Some(media) = self.media.take() {
             media.stop();
         }
+        self.clear_frame();
     }
 
     fn start_media(&mut self) {
@@ -399,6 +415,7 @@ impl AppState {
                 self.settings.quality.clone(),
                 self.outgoing.clone(),
                 self.peer_outgoing.clone(),
+                Some(self.frame_tx.clone()),
             ));
         }
     }

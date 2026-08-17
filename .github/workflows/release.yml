@@ -39,13 +39,11 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
-            ## RemoteX v0.2.3
-            - Smarter macOS permission guide on home screen and in Settings
-            - Larger settings button and clearer settings sidebar
-            - Tech-style connect flow: secure password modal, progress HUD, incoming request UI
-            - Custom temp password, copy ID/password in one tap
-            - Remote desktop streaming with mouse and keyboard control
-            - macOS universal DMG + Windows NSIS installer
+            ## RemoteX v0.2.4
+            - Fix remote desktop screen streaming (frame buffer + polling fallback)
+            - Restore deep red app icon
+            - Cleaner home header and professional device OS badges
+            - Download version label on website
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

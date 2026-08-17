@@ -136,6 +136,11 @@ fn displays() -> Vec<DisplayInfo> {
 }
 
 #[tauri::command]
+async fn latest_frame(state: State<'_, SharedState>) -> Option<remotex_core::RemoteFrame> {
+    state.lock().await.latest_frame()
+}
+
+#[tauri::command]
 async fn session_input(
     state: State<'_, SharedState>,
     event: InputEvent,
@@ -302,7 +307,8 @@ pub fn run() {
             open_permission_panel,
             request_screen_recording,
             open_permission_settings,
-            session_input
+            session_input,
+            latest_frame
         ])
         .run(tauri::generate_context!())
         .expect("error while running RemoteX");

@@ -36,6 +36,7 @@ pub fn start_host(
     quality: String,
     outgoing: mpsc::Sender<ClientMsg>,
     peer_outgoing: Option<mpsc::Sender<ClientMsg>>,
+    preview_tx: Option<mpsc::Sender<RemoteFrame>>,
 ) -> MediaHandle {
     let (stop_tx, mut stop_rx) = watch::channel(false);
     tokio::spawn(async move {
@@ -57,16 +58,25 @@ pub fn start_host(
                     let max_width = quality_max_width(&quality);
                     let frame = tokio::task::spawn_blocking(move || capture_primary_jpeg(max_width, 72)).await;
                     let Ok(Ok(frame)) = frame else {
+                        tracing::warn!("screen capture failed (check Screen Recording permission on macOS)");
                         continue;
                     };
                     sent_bytes += frame.bytes.len() as u64;
                     seq += 1;
+                    let encoded = B64.encode(&frame.bytes);
+                    if let Some(tx) = &preview_tx {
+                        let _ = tx.try_send(RemoteFrame {
+                            width: frame.width,
+                            height: frame.height,
+                            data: encoded.clone(),
+                        });
+                    }
                     let payload = json!({
                         "kind": "frame",
                         "seq": seq,
                         "width": frame.width,
                         "height": frame.height,
-                        "data": B64.encode(frame.bytes),
+                        "data": encoded,
                     });
                     send_signal(&session_id, payload, &outgoing, peer_outgoing.as_ref()).await;
                     if window_start.elapsed() >= Duration::from_secs(1) {

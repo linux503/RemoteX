@@ -2,31 +2,33 @@
 
 **Fast Remote Desktop.** No account. No setup. Just connect.
 
-官网：[https://linux503.github.io/RemoteX/](https://linux503.github.io/RemoteX/)
+![RemoteX home](docs/shots/zh/home.png)
 
-下载：[GitHub Releases](https://github.com/linux503/RemoteX/releases)
+## 下载 Download
 
-- macOS：`RemoteX_0.2.3_universal.dmg`，拖进「应用程序」再打开
-- Windows：`RemoteX_0.2.3_x64-setup.exe`，当前用户安装，无需管理员
+官网 / Website：[https://linux503.github.io/RemoteX/](https://linux503.github.io/RemoteX/)
 
-同一 Wi-Fi 下，两边都打开 RemoteX，输入对方设备码和临时密码即可连接。首页会列出附近设备。
+安装包 / Releases：[GitHub Releases](https://github.com/linux503/RemoteX/releases/latest)
 
-## Run locally
+| 系统 | 文件 |
+|------|------|
+| macOS | `RemoteX_*_universal.dmg` — 拖进「应用程序」 |
+| Windows | `RemoteX_*_x64-setup.exe` — 当前用户安装 |
 
-```bash
-source "$HOME/.cargo/env"
-cd apps/desktop
-npm install
-npm run tauri dev
-```
+## 使用
 
-两台本机实例可用不同数据目录：
+1. 两台电脑都打开 RemoteX  
+2. 输入对方 **设备码** 和 **临时密码**  
+3. 同一 Wi-Fi 下可在首页看到附近设备，点一下即可连接  
 
-```bash
-REMOTEX_DATA_DIR=/tmp/remotex-a npm run tauri dev
-REMOTEX_DATA_DIR=/tmp/remotex-b npm run tauri dev
-```
+![Connecting](docs/shots/zh/connecting.png)
 
-## v0.2.3
+![Remote session](docs/shots/zh/session.png)
 
-局域网自动发现、真实 macOS 权限引导、Windows 安装包。
+## 说明
+
+- 无需注册，无需登录  
+- Windows ↔ macOS 跨平台  
+- macOS 首次使用请在设置里完成屏幕录制等权限  
+
+更多截图见 [官网产品页](https://linux503.github.io/RemoteX/#shots)。

@@ -87,23 +87,37 @@ function modifierBits(event: { shiftKey: boolean; ctrlKey: boolean; altKey: bool
   return bits;
 }
 
-function RemoteDesktop({ locale }: { locale: Locale }) {
+function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) {
   const [src, setSrc] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(true);
   const stageRef = useRef<HTMLDivElement>(null);
+
+  const applyFrame = (data: string) => {
+    setWaiting(false);
+    setSrc(`data:image/jpeg;base64,${data}`);
+  };
 
   useEffect(() => {
     if (!isTauri()) return;
     let unlisten: (() => void) | undefined;
     import("@tauri-apps/api/event").then(({ listen }) =>
       listen<{ width: number; height: number; data: string }>("remote-frame", (event) => {
-        setWaiting(false);
-        setSrc(`data:image/jpeg;base64,${event.payload.data}`);
+        if (event.payload.data) applyFrame(event.payload.data);
       }).then((fn) => {
         unlisten = fn;
       }),
     );
     return () => unlisten?.();
+  }, []);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    const timer = window.setInterval(() => {
+      void invoke<{ data: string } | null>("latest_frame").then((frame) => {
+        if (frame?.data) applyFrame(frame.data);
+      });
+    }, 120);
+    return () => window.clearInterval(timer);
   }, []);
 
   const norm = (clientX: number, clientY: number) => {
@@ -157,7 +171,13 @@ function RemoteDesktop({ locale }: { locale: Locale }) {
         ) : (
           <div className="desktop-wait">
             <p>{t(locale, "remoteDesktop")}</p>
-            <span>{waiting ? t(locale, "waitingScreen") : t(locale, "screen")}</span>
+            <span>
+              {isHost
+                ? t(locale, "sharingScreen")
+                : waiting
+                  ? t(locale, "waitingScreen")
+                  : t(locale, "screenCaptureHint")}
+            </span>
           </div>
         )}
       </div>
@@ -519,7 +539,7 @@ export default function App() {
             <strong>{snap.session.path === "p2p" ? tr("directP2p") : tr("relay")}</strong>
           </div>
         </div>
-        <RemoteDesktop locale={locale} />
+        <RemoteDesktop locale={locale} isHost={snap.is_host} />
         {toast && <div className="toast">{toast}</div>}
       </div>
     );
@@ -565,8 +585,7 @@ export default function App() {
               }}
             />
           )}
-          <header className="hero">
-            <Logo size={28} />
+          <header className="hero hero-compact">
             <div>
               <h1>{tr("remoteDesktop")}</h1>
               <p>{tr("tagline")}</p>
@@ -672,19 +691,18 @@ export default function App() {
             <section className="recents">
               <p className="label">{tr("nearby")}</p>
               {snap.nearby.map((item) => (
-                <button
+                <DeviceListItem
                   key={item.id}
-                  className="recent-item"
+                  locale={locale}
+                  name={item.name}
+                  os={item.os}
+                  deviceId={item.id}
+                  trailing={<span className="dot ready" />}
                   onClick={() => {
                     setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
                     setPasswordStep(true);
                   }}
-                >
-                  <span className="recent-icon">{item.os === "macos" ? "⌘" : "▣"}</span>
-                  <span className="recent-name">{item.name}</span>
-                  <span className="muted">{item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3")}</span>
-                  <span className="dot ready" />
-                </button>
+                />
               ))}
             </section>
           )}
@@ -693,27 +711,24 @@ export default function App() {
             <section className="recents">
               <p className="label">{tr("recent")}</p>
               {snap.recents.map((item) => (
-                <button
+                <DeviceListItem
                   key={item.id}
-                  className="recent-item"
+                  locale={locale}
+                  name={item.name}
+                  os={item.os}
+                  deviceId={item.id}
+                  favorite={item.favorite}
+                  trailing={<span className="chevron">→</span>}
                   onClick={() => {
                     setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
                     setPasswordStep(true);
                   }}
-                >
-                  <span className="recent-icon">{item.os === "macos" ? "⌘" : "▣"}</span>
-                  <span className="recent-name">
-                    {item.favorite ? "★ " : ""}
-                    {item.name}
-                  </span>
-                  <span className="muted">{item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3")}</span>
-                  <span className="chevron">→</span>
-                </button>
+                />
               ))}
             </section>
           )}
 
-          <footer>RemoteX v0.2.3</footer>
+          <footer>RemoteX v0.2.4</footer>
         </main>
       )}
 
@@ -830,8 +845,8 @@ function Logo({ size }: { size: number }) {
     <svg width={size} height={size} viewBox="0 0 32 32" className="logo" aria-hidden>
       <defs>
         <linearGradient id={id} x1="6" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#F88A9A" />
-          <stop offset="1" stopColor="#E85D73" />
+          <stop stopColor="#FF3B55" />
+          <stop offset="1" stopColor="#BE123C" />
         </linearGradient>
       </defs>
       <rect x="1" y="1" width="30" height="30" rx="8" fill={`url(#${id})`} />
@@ -843,6 +858,73 @@ function Logo({ size }: { size: number }) {
       </g>
       <circle cx="16" cy="16" r="2.15" fill="#fff" />
     </svg>
+  );
+}
+
+function platformKind(os: string): "macos" | "windows" | "unknown" {
+  if (os === "macos") return "macos";
+  if (os === "windows") return "windows";
+  return "unknown";
+}
+
+function PlatformBadge({ os, label }: { os: string; label: string }) {
+  const kind = platformKind(os);
+  return (
+    <div className={`platform-badge ${kind}`} aria-label={label}>
+      {kind === "macos" ? (
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M16.365 1.43c0 1.14-.413 2.193-1.232 3.014-.855.855-1.902 1.275-3.028 1.197-.14-1.098.402-2.248 1.213-3.07.855-.88 2.022-1.41 3.047-1.141zM20.88 17.203c-.747 1.626-1.109 2.358-2.072 3.803-1.342 1.983-3.232 4.458-5.586 4.474-2.088.015-2.626-1.357-5.456-1.357-2.83 0-3.431 1.327-5.47 1.372-2.187.045-3.851-2.276-5.193-4.254C-.55 18.853-.972 13.212 2.36 10.21c1.657-1.534 3.817-2.44 6.005-2.466 2.358-.03 3.643 1.327 5.47 1.327 1.827 0 2.947-1.327 5.564-1.302 2.006.03 3.676 1.089 5.01 2.465-4.403 2.427-3.692 8.744.471 10.969z" />
+        </svg>
+      ) : kind === "windows" ? (
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M3 12.5V3.5l8 1.2v7.8H3zm9 0V4.3l9 1.3v7.9H12zM3 20.5v-7.8h8v9L3 20.5zm9-.9V13h9v8.3l-9-1.7z" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <rect x="4" y="5" width="16" height="11" rx="1.5" />
+          <path d="M8 19h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+function DeviceListItem({
+  locale,
+  name,
+  os,
+  deviceId,
+  favorite,
+  trailing,
+  onClick,
+}: {
+  locale: Locale;
+  name: string;
+  os: string;
+  deviceId: string;
+  favorite?: boolean;
+  trailing: ReactNode;
+  onClick: () => void;
+}) {
+  const tr = (key: MessageKey) => t(locale, key);
+  const kind = platformKind(os);
+  const osLabel = kind === "macos" ? tr("osMac") : kind === "windows" ? tr("osWindows") : os;
+
+  return (
+    <button type="button" className="recent-item" onClick={onClick}>
+      <PlatformBadge os={os} label={osLabel} />
+      <div className="recent-main">
+        <span className="recent-name">
+          {favorite ? "★ " : ""}
+          {name}
+        </span>
+        <span className="recent-meta">
+          <span className={`platform-tag ${kind}`}>{osLabel}</span>
+          <span className="recent-id">{deviceId.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3")}</span>
+        </span>
+      </div>
+      {trailing}
+    </button>
   );
 }
 
@@ -1014,7 +1096,7 @@ function Settings({
               <h2>RemoteX</h2>
               <p>{tr("aboutTagline")}</p>
               <p className="muted">{tr("aboutNote")}</p>
-              <p className="muted">v0.2.3 · macOS / Windows</p>
+              <p className="muted">v0.2.4 · macOS / Windows</p>
               <a className="github-link" href="https://github.com/linux503/RemoteX" target="_blank" rel="noreferrer">
                 GitHub
               </a>

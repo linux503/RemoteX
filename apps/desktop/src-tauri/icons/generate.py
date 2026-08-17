@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 root = Path(__file__).resolve().parent
-desktop = root.parents[2]
+desktop = root.parents[1]
 repo = root.parents[3]
 logo = repo / "docs" / "logo.svg"
 
