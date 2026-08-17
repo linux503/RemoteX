@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { previewSnapshot, type AppSettings, type PermissionsStatus, type Snapshot } from "./types";
 import { resolveLocale, t, translateError, type Locale, type MessageKey } from "./i18n";
 
@@ -44,6 +44,93 @@ function permDotClass(state: string) {
   if (state === "granted") return "ready";
   if (state === "denied") return "offline";
   return "warn";
+}
+
+function modifierBits(event: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }) {
+  let bits = 0;
+  if (event.shiftKey) bits |= 1;
+  if (event.ctrlKey) bits |= 2;
+  if (event.altKey) bits |= 4;
+  if (event.metaKey) bits |= 8;
+  return bits;
+}
+
+function RemoteDesktop({ locale }: { locale: Locale }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(true);
+  const stageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    import("@tauri-apps/api/event").then(({ listen }) =>
+      listen<{ width: number; height: number; data: string }>("remote-frame", (event) => {
+        setWaiting(false);
+        setSrc(`data:image/jpeg;base64,${event.payload.data}`);
+      }).then((fn) => {
+        unlisten = fn;
+      }),
+    );
+    return () => unlisten?.();
+  }, []);
+
+  const norm = (clientX: number, clientY: number) => {
+    const el = stageRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return { x: 0, y: 0 };
+    return {
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height,
+    };
+  };
+
+  const sendInput = (event: Record<string, unknown>) => {
+    if (!isTauri()) return;
+    void invoke("session_input", { event });
+  };
+
+  return (
+    <div className="desktop-stage">
+      <div
+        ref={stageRef}
+        className="desktop-canvas remote"
+        tabIndex={0}
+        onContextMenu={(e) => e.preventDefault()}
+        onMouseMove={(e) => {
+          const p = norm(e.clientX, e.clientY);
+          sendInput({ type: "mouse_move", x: p.x, y: p.y });
+        }}
+        onMouseDown={(e) => {
+          const p = norm(e.clientX, e.clientY);
+          sendInput({ type: "mouse_down", button: e.button, x: p.x, y: p.y });
+        }}
+        onMouseUp={(e) => {
+          const p = norm(e.clientX, e.clientY);
+          sendInput({ type: "mouse_up", button: e.button, x: p.x, y: p.y });
+        }}
+        onWheel={(e) => {
+          sendInput({ type: "wheel", dx: e.deltaX, dy: e.deltaY });
+        }}
+        onKeyDown={(e) => {
+          if (e.repeat) return;
+          sendInput({ type: "key_down", key: e.code, modifiers: modifierBits(e) });
+        }}
+        onKeyUp={(e) => {
+          sendInput({ type: "key_up", key: e.code, modifiers: modifierBits(e) });
+        }}
+      >
+        {src ? (
+          <img src={src} alt="" draggable={false} />
+        ) : (
+          <div className="desktop-wait">
+            <p>{t(locale, "remoteDesktop")}</p>
+            <span>{waiting ? t(locale, "waitingScreen") : t(locale, "screen")}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -366,12 +453,7 @@ export default function App() {
             <strong>{snap.session.path === "p2p" ? tr("directP2p") : tr("relay")}</strong>
           </div>
         </div>
-        <div className="desktop-stage">
-          <div className="desktop-canvas">
-            <p>{tr("remoteDesktop")}</p>
-            <span>{snap.session.peer_os === "macos" ? "macOS" : "Windows"} {tr("screen")}</span>
-          </div>
-        </div>
+        <RemoteDesktop locale={locale} />
         {toast && <div className="toast">{toast}</div>}
       </div>
     );

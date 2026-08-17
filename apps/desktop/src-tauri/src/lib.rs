@@ -1,4 +1,5 @@
 use capture::{list_displays, DisplayInfo};
+use input::InputEvent;
 use remotex_core::{AppEvent, AppSettings, AppState};
 use serde::Serialize;
 use std::sync::Arc;
@@ -119,7 +120,16 @@ async fn toggle_favorite(
 
 #[tauri::command]
 fn displays() -> Vec<DisplayInfo> {
-    list_displays()
+    list_displays().unwrap_or_default()
+}
+
+#[tauri::command]
+async fn session_input(
+    state: State<'_, SharedState>,
+    event: InputEvent,
+) -> Result<(), CommandError> {
+    state.lock().await.send_input(event).await?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -192,8 +202,16 @@ pub fn run() {
             let event_handle = handle.clone();
             tauri::async_runtime::spawn(async move {
                 while let Some(evt) = events.recv().await {
-                    if let AppEvent::Snapshot(snap) = evt {
-                        let _ = event_handle.emit("snapshot", snap);
+                    match evt {
+                        AppEvent::Snapshot(snap) => {
+                            let _ = event_handle.emit("snapshot", snap);
+                        }
+                        AppEvent::Frame(frame) => {
+                            let _ = event_handle.emit("remote-frame", frame);
+                        }
+                        AppEvent::Toast(msg) => {
+                            let _ = event_handle.emit("toast", msg);
+                        }
                     }
                 }
             });
@@ -270,7 +288,8 @@ pub fn run() {
             permissions_status,
             open_permission_panel,
             request_screen_recording,
-            open_permission_settings
+            open_permission_settings,
+            session_input
         ])
         .run(tauri::generate_context!())
         .expect("error while running RemoteX");

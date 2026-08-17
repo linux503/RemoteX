@@ -22,6 +22,7 @@ protocol = { path = "crates/protocol" }
 core = { path = "crates/core", package = "remotex-core" }
 capture = { path = "crates/capture", package = "remotex-capture" }
 input = { path = "crates/input", package = "remotex-input" }
+base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }

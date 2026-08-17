@@ -23,3 +23,6 @@ tracing.workspace = true
 hostname = "0.4"
 whoami = "1"
 if-addrs = "0.13"
+capture.workspace = true
+input.workspace = true
+base64 = "0.22"

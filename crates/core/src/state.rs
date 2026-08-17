@@ -8,11 +8,13 @@ use tokio::sync::{mpsc, Mutex};
 
 use crate::identity::{data_dir, format_password, DeviceIdentity};
 use crate::lan::{self, LanDiscovery, NearbyDevice};
+use crate::media::{self, MediaHandle, RemoteFrame, SessionRole};
 use crate::password::{AuthOutcome, PasswordVault};
 use crate::recents::RecentsStore;
 use crate::settings::AppSettings;
 use crate::signaling::SignalingClient;
 use crate::Result;
+use input::InputEvent;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -71,6 +73,7 @@ pub struct IncomingView {
 #[derive(Debug, Clone)]
 pub enum AppEvent {
     Snapshot(Snapshot),
+    Frame(RemoteFrame),
     Toast(String),
 }
 
@@ -91,6 +94,10 @@ pub struct AppState {
     last_error: Option<String>,
     heartbeat_sent: Option<Instant>,
     network_rtt_ms: u32,
+    session_role: Option<SessionRole>,
+    media: Option<MediaHandle>,
+    host_screen: Arc<Mutex<(u32, u32)>>,
+    frame_tx: mpsc::Sender<RemoteFrame>,
 }
 
 impl AppState {
@@ -105,6 +112,7 @@ impl AppState {
         let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(64);
         let (in_tx, mut in_rx) = mpsc::channel::<ServerMsg>(64);
         let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(64);
+        let (frame_tx, mut frame_rx) = mpsc::channel::<RemoteFrame>(4);
 
         let register = ClientMsg::register(&DeviceInfo {
             id: identity.device_id.clone(),
@@ -129,6 +137,10 @@ impl AppState {
             last_error: None,
             heartbeat_sent: None,
             network_rtt_ms: 0,
+            session_role: None,
+            media: None,
+            host_screen: Arc::new(Mutex::new(media::primary_screen_size())),
+            frame_tx: frame_tx.clone(),
         }));
 
         let client = SignalingClient::new(settings.signaling_url.clone());
@@ -165,12 +177,20 @@ impl AppState {
         });
 
         let loop_state = state.clone();
+        let snapshot_events = evt_tx.clone();
         tokio::spawn(async move {
             while let Some(msg) = in_rx.recv().await {
                 let mut guard = loop_state.lock().await;
                 guard.handle_server(msg).await;
                 let snap = guard.snapshot_async().await;
-                let _ = evt_tx.send(AppEvent::Snapshot(snap)).await;
+                let _ = snapshot_events.send(AppEvent::Snapshot(snap)).await;
+            }
+        });
+
+        let frame_events = evt_tx.clone();
+        tokio::spawn(async move {
+            while let Some(frame) = frame_rx.recv().await {
+                let _ = frame_events.send(AppEvent::Frame(frame)).await;
             }
         });
 
@@ -233,6 +253,7 @@ impl AppState {
             return Err(crate::Error::Message("You cannot connect to this device".into()));
         }
         self.last_error = None;
+        self.session_role = Some(SessionRole::Viewer);
         self.phase = SessionPhase::Connecting;
         self.session = Some(SessionView {
             session_id: String::new(),
@@ -301,6 +322,7 @@ impl AppState {
     }
 
     pub async fn decline(&mut self) {
+        self.stop_media();
         if let Some(incoming) = &self.incoming {
             let session_id = incoming.session_id.clone();
             self.outgoing
@@ -309,10 +331,12 @@ impl AppState {
                 .ok();
         }
         self.incoming = None;
+        self.session_role = None;
         self.phase = SessionPhase::Idle;
     }
 
     pub async fn hangup(&mut self) {
+        self.stop_media();
         if let Some(session) = &self.session {
             let hangup = ClientMsg::Hangup {
                 session_id: session.session_id.clone(),
@@ -326,7 +350,50 @@ impl AppState {
         self.peer_outgoing = None;
         self.session = None;
         self.incoming = None;
+        self.session_role = None;
         self.phase = SessionPhase::Idle;
+    }
+
+    pub async fn send_input(&self, event: InputEvent) -> Result<()> {
+        let Some(session) = &self.session else {
+            return Ok(());
+        };
+        if self.session_role != Some(SessionRole::Viewer) {
+            return Ok(());
+        }
+        media::send_input_signal(
+            &session.session_id,
+            event,
+            &self.outgoing,
+            self.peer_outgoing.as_ref(),
+        )
+        .await;
+        Ok(())
+    }
+
+    fn stop_media(&mut self) {
+        if let Some(media) = self.media.take() {
+            media.stop();
+        }
+    }
+
+    fn start_media(&mut self) {
+        self.stop_media();
+        let Some(role) = self.session_role else {
+            return;
+        };
+        let Some(session) = self.session.clone() else {
+            return;
+        };
+        if role == SessionRole::Host {
+            *self.host_screen.try_lock().unwrap() = media::primary_screen_size();
+            self.media = Some(media::start_host(
+                session.session_id,
+                self.settings.quality.clone(),
+                self.outgoing.clone(),
+                self.peer_outgoing.clone(),
+            ));
+        }
     }
 
     pub fn toggle_favorite(&mut self, id: &str) -> Result<()> {
@@ -358,6 +425,7 @@ impl AppState {
                 from,
                 password,
             } => {
+                self.session_role = Some(SessionRole::Host);
                 match self.passwords.verify(&password, self.settings.unattended) {
                     AuthOutcome::Failed => {
                         let _ = self
@@ -406,8 +474,10 @@ impl AppState {
                 });
                 self.incoming = None;
                 self.phase = SessionPhase::Connected;
+                self.start_media();
             }
             ServerMsg::Declined { .. } => {
+                self.stop_media();
                 self.session = None;
                 self.incoming = None;
                 self.peer_outgoing = None;
@@ -415,12 +485,14 @@ impl AppState {
                 self.last_error = Some("The other device declined".into());
             }
             ServerMsg::AuthFailed { message, .. } => {
+                self.stop_media();
                 self.session = None;
                 self.peer_outgoing = None;
                 self.phase = SessionPhase::Idle;
                 self.last_error = Some(message);
             }
             ServerMsg::PeerOffline { .. } => {
+                self.stop_media();
                 self.session = None;
                 self.peer_outgoing = None;
                 self.phase = SessionPhase::Idle;
@@ -430,9 +502,11 @@ impl AppState {
                 );
             }
             ServerMsg::Hangup { .. } => {
+                self.stop_media();
                 self.session = None;
                 self.incoming = None;
                 self.peer_outgoing = None;
+                self.session_role = None;
                 self.phase = SessionPhase::Idle;
             }
             ServerMsg::Error { message } => {
@@ -451,7 +525,20 @@ impl AppState {
                     }
                 }
             }
-            ServerMsg::Signal { .. } => {}
+            ServerMsg::Signal { data, .. } => {
+                if self.phase != SessionPhase::Connected {
+                    return;
+                }
+                let Some(role) = self.session_role else {
+                    return;
+                };
+                media::handle_signal(
+                    &data,
+                    role,
+                    &self.frame_tx,
+                    &self.host_screen,
+                );
+            }
         }
     }
 }
