@@ -5,7 +5,7 @@ const copy = {
     navDownload: "Download",
     getApp: "Get the app",
     eyebrow: "v0.2 · Fast Remote Desktop",
-    heroTitle: "Open. Copy the code.<br />Connect.",
+    heroTitle: "Open.<br /><em>Copy the code.</em><br /><strong>Connect.</strong>",
     heroLead: "No account, no login. A red remote desktop for Windows and macOS — enter a device code and connect.",
     downloadRemoteX: "Download RemoteX",
     seeProduct: "See the product",
@@ -43,6 +43,10 @@ const copy = {
     dlWinDesc: "Windows 10 / 11. Same UI as Mac, cross-platform control.",
     dlWinBtn: "Windows Installer",
     dlAll: "All releases",
+    macFixTitle: "macOS says it’s damaged?",
+    macFixDesc: "Unsigned GitHub builds get quarantined by Chrome. Drag RemoteX into Applications, then paste this in Terminal:",
+    copyCmd: "Copy",
+    copiedCmd: "Copied",
     title: "RemoteX — Fast Remote Desktop",
     description: "No account. No setup. Just connect. Windows and macOS remote desktop.",
   },
@@ -52,7 +56,7 @@ const copy = {
     navDownload: "下载",
     getApp: "获取应用",
     eyebrow: "v0.2 · 极速远程桌面",
-    heroTitle: "打开。复制设备码。<br />连接。",
+    heroTitle: "打开。<br /><em>复制设备码。</em><br /><strong>连接。</strong>",
     heroLead: "无需注册，无需登录。红到骨子里的远程桌面：Windows ↔ macOS，输入设备码就能连。",
     downloadRemoteX: "下载 RemoteX",
     seeProduct: "看看产品",
@@ -90,6 +94,10 @@ const copy = {
     dlWinDesc: "Windows 10 / 11。和 Mac 同一套界面，跨平台互相控制。",
     dlWinBtn: "Windows 安装包",
     dlAll: "全部版本",
+    macFixTitle: "Mac 提示已损坏 / 移到废纸篓？",
+    macFixDesc: "从浏览器下载的未公证应用会被隔离。先把 RemoteX 拖进「应用程序」，再把下面命令粘贴到终端回车：",
+    copyCmd: "复制",
+    copiedCmd: "已复制",
     title: "RemoteX — 极速远程桌面",
     description: "无需注册，无需登录。输入设备码即可远程连接。Windows 与 macOS 跨平台远程桌面。",
   },
@@ -124,6 +132,12 @@ function applyLang(lang) {
   document.querySelectorAll(".lang button").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-lang") === lang);
   });
+  const copyBtn = document.querySelector(".copy-cmd");
+  if (copyBtn) {
+    copyBtn.textContent = dict.copyCmd;
+    copyBtn.setAttribute("data-i18n-copy", dict.copyCmd);
+    copyBtn.setAttribute("data-copied", dict.copiedCmd);
+  }
   localStorage.setItem("remotex-lang", lang);
   const url = new URL(location.href);
   url.searchParams.set("lang", lang);

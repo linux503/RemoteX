@@ -26,7 +26,14 @@ const previewScene =
   typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("scene") : null;
 
 export default function App() {
-  const [snap, setSnap] = useState<Snapshot>(() => previewSnapshot(previewScene));
+  const [snap, setSnap] = useState<Snapshot>(() => {
+    const next = previewSnapshot(previewScene);
+    const lang = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("lang") : null;
+    if (previewScene && (lang === "en" || lang === "zh")) {
+      return { ...next, settings: { ...next.settings, language: lang } };
+    }
+    return next;
+  });
   const [view, setView] = useState<"home" | "settings">(previewScene === "settings" ? "settings" : "home");
   const [hidePassword, setHidePassword] = useState(false);
   const [connectId, setConnectId] = useState("");

@@ -8,7 +8,7 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@500;700;900&family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./site.css" />
   </head>
   <body>
@@ -20,29 +20,31 @@
 
     <div class="wrap">
       <header>
-        <a class="brand" href="./">
-          <img src="./logo.svg" width="28" height="28" alt="" />
-          RemoteX
-        </a>
-        <nav>
-          <a href="#shots" data-i18n="navProduct">Product</a>
-          <a href="#features" data-i18n="navFeatures">Features</a>
-          <a href="#download" data-i18n="navDownload">Download</a>
-          <a href="https://github.com/linux503/RemoteX">GitHub</a>
-        </nav>
-        <div class="header-actions">
-          <div class="lang" role="group" aria-label="Language">
-            <button type="button" data-lang="en">EN</button>
-            <button type="button" data-lang="zh">中文</button>
+        <div class="bar">
+          <a class="brand" href="./">
+            <img src="./logo.svg" width="28" height="28" alt="" />
+            RemoteX
+          </a>
+          <nav>
+            <a href="#shots" data-i18n="navProduct">Product</a>
+            <a href="#features" data-i18n="navFeatures">Features</a>
+            <a href="#download" data-i18n="navDownload">Download</a>
+            <a href="https://github.com/linux503/RemoteX">GitHub</a>
+          </nav>
+          <div class="header-actions">
+            <div class="lang" role="group" aria-label="Language">
+              <button type="button" data-lang="en">EN</button>
+              <button type="button" data-lang="zh">中文</button>
+            </div>
+            <a class="btn tiny" href="#download" data-i18n="getApp">Get the app</a>
           </div>
-          <a class="btn tiny" href="#download" data-i18n="getApp">Get the app</a>
         </div>
       </header>
 
       <section class="hero">
         <div class="hero-copy reveal">
           <p class="eyebrow"><span></span> <span data-i18n="eyebrow">v0.2 · Fast Remote Desktop</span></p>
-          <h1 data-i18n-html="heroTitle">Open. Copy the code.<br />Connect.</h1>
+          <h1 data-i18n-html="heroTitle">Open.<br /><em>Copy the code.</em><br /><strong>Connect.</strong></h1>
           <p class="lead" data-i18n="heroLead">No account, no login. A red remote desktop for Windows and macOS — enter a device code and connect.</p>
           <div class="cta">
             <a class="btn" href="#download" data-i18n="downloadRemoteX">Download RemoteX</a>
@@ -53,7 +55,10 @@
         <div class="hero-visual reveal delay">
           <div class="glow"></div>
           <figure class="phone-frame float">
-            <img src="./shots/home.png" alt="" data-i18n-alt="altHome" />
+            <div class="window">
+              <div class="winbar"><i></i><i></i><i></i></div>
+              <img src="./shots/home.png" alt="" data-i18n-alt="altHome" />
+            </div>
           </figure>
         </div>
       </section>
@@ -61,8 +66,18 @@
 
     <div class="marquee" aria-hidden="true">
       <div class="track">
-        <span data-i18n="m1">No Account</span><span data-i18n="m2">P2P First</span><span>36ms</span><span data-i18n="m4">Windows ↔ macOS</span><span data-i18n="m5">Device ID</span><span data-i18n="m6">Unattended</span>
-        <span data-i18n="m1">No Account</span><span data-i18n="m2">P2P First</span><span>36ms</span><span data-i18n="m4">Windows ↔ macOS</span><span data-i18n="m5">Device ID</span><span data-i18n="m6">Unattended</span>
+        <span class="chip" data-i18n="m1">No Account</span>
+        <span class="chip" data-i18n="m2">P2P First</span>
+        <span class="chip">36ms</span>
+        <span class="chip" data-i18n="m4">Windows ↔ macOS</span>
+        <span class="chip" data-i18n="m5">Device ID</span>
+        <span class="chip" data-i18n="m6">Unattended</span>
+        <span class="chip" data-i18n="m1">No Account</span>
+        <span class="chip" data-i18n="m2">P2P First</span>
+        <span class="chip">36ms</span>
+        <span class="chip" data-i18n="m4">Windows ↔ macOS</span>
+        <span class="chip" data-i18n="m5">Device ID</span>
+        <span class="chip" data-i18n="m6">Unattended</span>
       </div>
     </div>
 
@@ -72,43 +87,71 @@
           <p class="eyebrow" data-i18n="navProduct">Product</p>
           <h2 data-i18n="shotsTitle">Looks finished. Feels like a note.</h2>
         </div>
-        <div class="shot-grid">
-          <figure class="shot reveal">
-            <img src="./shots/home.png" alt="" data-i18n-alt="altHome" />
+        <div class="shot-bento">
+          <figure class="shot shot-home reveal">
+            <div class="window">
+              <div class="winbar"><i></i><i></i><i></i></div>
+              <img src="./shots/home.png" alt="" data-i18n-alt="altHome" />
+            </div>
             <figcaption>
               <strong data-i18n="shotHome">Home</strong>
               <span data-i18n="shotHomeDesc">Device ID + temporary password. You know how to use it in 3 seconds.</span>
             </figcaption>
           </figure>
-          <figure class="shot reveal delay">
-            <img src="./shots/connecting.png" alt="" data-i18n-alt="altConnecting" />
+          <figure class="shot shot-connect reveal delay">
+            <div class="window">
+              <div class="winbar"><i></i><i></i><i></i></div>
+              <img src="./shots/connecting.png" alt="" data-i18n-alt="altConnecting" />
+            </div>
             <figcaption>
               <strong data-i18n="shotHandshake">Handshake</strong>
               <span data-i18n="shotHandshakeDesc">Find device, secure handshake, P2P — each step lights up.</span>
             </figcaption>
           </figure>
-          <figure class="shot wide reveal">
-            <img src="./shots/session.png" alt="" data-i18n-alt="altSession" />
-            <figcaption>
-              <strong data-i18n="shotSession">Session</strong>
-              <span data-i18n="shotSessionDesc">Latency, download, upload, Direct P2P — visible the moment you connect.</span>
-            </figcaption>
-          </figure>
-          <figure class="shot reveal delay">
-            <img src="./shots/incoming.png" alt="" data-i18n-alt="altIncoming" />
+          <figure class="shot shot-incoming reveal">
+            <div class="window">
+              <div class="winbar"><i></i><i></i><i></i></div>
+              <img src="./shots/incoming.png" alt="" data-i18n-alt="altIncoming" />
+            </div>
             <figcaption>
               <strong data-i18n="shotConfirm">Confirm</strong>
               <span data-i18n="shotConfirmDesc">When someone wants to control this computer, accept first.</span>
+            </figcaption>
+          </figure>
+          <figure class="shot shot-session reveal delay">
+            <div class="window wide">
+              <div class="winbar"><i></i><i></i><i></i></div>
+              <img src="./shots/session.png" alt="" data-i18n-alt="altSession" />
+            </div>
+            <figcaption>
+              <strong data-i18n="shotSession">Session</strong>
+              <span data-i18n="shotSessionDesc">Latency, download, upload, Direct P2P — visible the moment you connect.</span>
             </figcaption>
           </figure>
         </div>
       </section>
 
       <section id="features" class="bento">
-        <article class="reveal"><h3 data-i18n="f1t">No Account</h3><p data-i18n="f1d">No login page. ID and password are everything.</p></article>
-        <article class="reveal delay"><h3 data-i18n="f2t">Cross-platform</h3><p data-i18n="f2d">Windows and macOS control each other, same red UI.</p></article>
-        <article class="reveal"><h3 data-i18n="f3t">Live stats</h3><p data-i18n="f3d">See latency and speed. P2P or Relay is obvious.</p></article>
-        <article class="reveal delay"><h3 data-i18n="f4t">3 seconds</h3><p data-i18n="f4d">One window covers 80% of actions. Copy, connect, done.</p></article>
+        <article class="reveal">
+          <span class="idx">01</span>
+          <h3 data-i18n="f1t">No Account</h3>
+          <p data-i18n="f1d">No login page. ID and password are everything.</p>
+        </article>
+        <article class="reveal delay">
+          <span class="idx">02</span>
+          <h3 data-i18n="f2t">Cross-platform</h3>
+          <p data-i18n="f2d">Windows and macOS control each other, same red UI.</p>
+        </article>
+        <article class="reveal">
+          <span class="idx">03</span>
+          <h3 data-i18n="f3t">Live stats</h3>
+          <p data-i18n="f3d">See latency and speed. P2P or Relay is obvious.</p>
+        </article>
+        <article class="reveal delay">
+          <span class="idx">04</span>
+          <h3 data-i18n="f4t">3 seconds</h3>
+          <p data-i18n="f4d">One window covers 80% of actions. Copy, connect, done.</p>
+        </article>
       </section>
 
       <section id="download" class="downloads">
@@ -136,6 +179,14 @@
             </div>
           </article>
         </div>
+        <aside class="mac-fix reveal">
+          <p class="os" data-i18n="macFixTitle">macOS says it’s damaged?</p>
+          <p data-i18n="macFixDesc">Unsigned GitHub builds get quarantined by Chrome. Drag RemoteX into Applications, then paste this in Terminal:</p>
+          <div class="cmd">
+            <code>xattr -cr /Applications/RemoteX.app && open /Applications/RemoteX.app</code>
+            <button type="button" class="copy-cmd" data-i18n="copyCmd">Copy</button>
+          </div>
+        </aside>
       </section>
 
       <footer>
@@ -156,6 +207,13 @@
       window.addEventListener("pointermove", (e) => {
         document.body.style.setProperty("--mx", e.clientX + "px");
         document.body.style.setProperty("--my", e.clientY + "px");
+      });
+      const copyBtn = document.querySelector(".copy-cmd");
+      const cmd = "xattr -cr /Applications/RemoteX.app && open /Applications/RemoteX.app";
+      copyBtn?.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(cmd);
+        copyBtn.textContent = copyBtn.getAttribute("data-copied") || "Copied";
+        setTimeout(() => { copyBtn.textContent = copyBtn.getAttribute("data-i18n-copy") || "Copy"; }, 1400);
       });
     </script>
   </body>
