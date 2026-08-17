@@ -33,15 +33,15 @@ impl From<String> for CommandError {
 
 #[tauri::command]
 async fn snapshot(state: State<'_, SharedState>) -> Result<remotex_core::Snapshot, CommandError> {
-    Ok(state.lock().await.snapshot())
+    Ok(state.lock().await.snapshot_async().await)
 }
 
 #[tauri::command]
 async fn refresh_password(app: AppHandle, state: State<'_, SharedState>) -> Result<remotex_core::Snapshot, CommandError> {
     let mut guard = state.lock().await;
     guard.refresh_password();
-    emit_snapshot(&app, &guard);
-    Ok(guard.snapshot())
+    emit_snapshot(&app, &guard).await;
+    Ok(guard.snapshot_async().await)
 }
 
 #[tauri::command]
@@ -53,15 +53,15 @@ async fn connect(
 ) -> Result<remotex_core::Snapshot, CommandError> {
     let mut guard = state.lock().await;
     guard.connect(target_id, password).await?;
-    emit_snapshot(&app, &guard);
-    Ok(guard.snapshot())
+    emit_snapshot(&app, &guard).await;
+    Ok(guard.snapshot_async().await)
 }
 
 #[tauri::command]
 async fn accept(app: AppHandle, state: State<'_, SharedState>) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
     guard.accept().await;
-    emit_snapshot(&app, &guard);
+    emit_snapshot(&app, &guard).await;
     Ok(())
 }
 
@@ -69,7 +69,7 @@ async fn accept(app: AppHandle, state: State<'_, SharedState>) -> Result<(), Com
 async fn decline(app: AppHandle, state: State<'_, SharedState>) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
     guard.decline().await;
-    emit_snapshot(&app, &guard);
+    emit_snapshot(&app, &guard).await;
     Ok(())
 }
 
@@ -77,7 +77,7 @@ async fn decline(app: AppHandle, state: State<'_, SharedState>) -> Result<(), Co
 async fn hangup(app: AppHandle, state: State<'_, SharedState>) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
     guard.hangup().await;
-    emit_snapshot(&app, &guard);
+    emit_snapshot(&app, &guard).await;
     Ok(())
 }
 
@@ -89,7 +89,7 @@ async fn save_settings(
 ) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
     guard.update_settings(settings)?;
-    emit_snapshot(&app, &guard);
+    emit_snapshot(&app, &guard).await;
     Ok(())
 }
 
@@ -101,7 +101,7 @@ async fn set_permanent_password(
 ) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
     guard.set_permanent_password(&password);
-    emit_snapshot(&app, &guard);
+    emit_snapshot(&app, &guard).await;
     Ok(())
 }
 
@@ -113,7 +113,7 @@ async fn toggle_favorite(
 ) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
     guard.toggle_favorite(&id)?;
-    emit_snapshot(&app, &guard);
+    emit_snapshot(&app, &guard).await;
     Ok(())
 }
 
@@ -133,8 +133,8 @@ fn open_permission_settings() -> Result<(), CommandError> {
     Ok(())
 }
 
-fn emit_snapshot(app: &AppHandle, state: &AppState) {
-    let _ = app.emit("snapshot", state.snapshot());
+async fn emit_snapshot(app: &AppHandle, state: &AppState) {
+    let _ = app.emit("snapshot", state.snapshot_async().await);
 }
 
 fn show_main(app: &AppHandle) {
@@ -176,7 +176,7 @@ pub fn run() {
             app.manage(state.clone());
 
             {
-                let snap = tauri::async_runtime::block_on(async { state.lock().await.snapshot() });
+                let snap = tauri::async_runtime::block_on(async { state.lock().await.snapshot_async().await });
                 let _ = handle.emit("snapshot", snap);
             }
 

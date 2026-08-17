@@ -31,7 +31,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["dmg", "nsis"],
+    "shortDescription": "Fast remote desktop. No account. Just connect.",
+    "longDescription": "RemoteX is a lightweight remote desktop for Windows and macOS. Copy a device ID, enter the password, connect.",
+    "category": "Utility",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -42,7 +45,23 @@
     ],
     "macOS": {
       "signingIdentity": "-",
-      "minimumSystemVersion": "12.0"
+      "minimumSystemVersion": "12.0",
+      "dmg": {
+        "appPosition": { "x": 180, "y": 220 },
+        "applicationFolderPosition": { "x": 480, "y": 220 },
+        "windowSize": { "width": 660, "height": 400 }
+      }
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "startMenuFolder": "RemoteX"
+      }
     }
   },
   "plugins": {}

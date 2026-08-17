@@ -74,8 +74,8 @@ const en = {
   preferP2p: "Prefer P2P",
   hardwareEncode: "Hardware encoding",
   signalingServer: "Signaling server",
-  signalingHint: "127.0.0.1 is this computer only. On LAN, paste the other PC’s ws://IP:7829/ws. For the public internet, host signaling and use wss://your-server/ws.",
-  lanHint: "LAN address for the other computer",
+  signalingHint: "Same Wi-Fi: just enter the other device ID. Custom signaling is only for a hosted public server.",
+  lanHint: "This computer’s LAN address",
   connection: "Connection",
   online: "Online",
   offline: "Offline",
@@ -97,6 +97,9 @@ const en = {
   aboutNote: "No account. No setup. Just connect.",
   comingSoon: "Coming in a later update",
   permHint: "Grant these in macOS System Settings so RemoteX can share and control the screen.",
+  nearby: "Nearby on Wi-Fi",
+  peerNotFound: "Device not found on this Wi-Fi. Open RemoteX on the other computer first.",
+  peerDeclined: "The other device declined",
 };
 
 const zh: typeof en = {
@@ -173,8 +176,8 @@ const zh: typeof en = {
   preferP2p: "优先 P2P",
   hardwareEncode: "硬件编码",
   signalingServer: "信令服务器",
-  signalingHint: "127.0.0.1 只连本机。局域网请把另一台电脑的信令改成下面这个地址。以后上公网，把信令部署到服务器后填 wss://你的域名/ws。",
-  lanHint: "给另一台电脑用的局域网地址",
+  signalingHint: "同一 Wi-Fi：直接输入对方设备码即可。自定义信令只用于以后自己部署的公网服务器。",
+  lanHint: "这台电脑的局域网地址",
   connection: "连接",
   online: "在线",
   offline: "离线",
@@ -196,6 +199,9 @@ const zh: typeof en = {
   aboutNote: "无需账号。无需配置。直接连接。",
   comingSoon: "后续版本推出",
   permHint: "请在 macOS 系统设置中授权，RemoteX 才能共享和控制屏幕。",
+  nearby: "附近 Wi-Fi 设备",
+  peerNotFound: "这个 Wi-Fi 里找不到该设备。请先在另一台电脑打开 RemoteX。",
+  peerDeclined: "对方拒绝了连接",
 };
 
 const dict = { en, zh };
@@ -217,6 +223,12 @@ export function translateError(locale: Locale, message: string): string {
   if (message.includes("9-digit") || message.includes("9 位")) return t(locale, "invalidId");
   if (message.toLowerCase().includes("cannot connect") || message.includes("不能连接")) {
     return t(locale, "cannotConnectSelf");
+  }
+  if (message.includes("not found on this Wi-Fi") || message.includes("找不到该设备")) {
+    return t(locale, "peerNotFound");
+  }
+  if (message.toLowerCase().includes("declined") || message.includes("拒绝")) {
+    return t(locale, "peerDeclined");
   }
   return message;
 }

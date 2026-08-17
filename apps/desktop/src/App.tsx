@@ -134,6 +134,10 @@ export default function App() {
   const locale = resolveLocale(snap.settings.language);
   const tr = (key: MessageKey) => t(locale, key);
 
+  useEffect(() => {
+    if (snap.last_error) setError(translateError(locale, snap.last_error));
+  }, [snap.last_error, locale]);
+
   const formatIdInput = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 9);
     return digits.replace(/(\d{3})(\d{0,3})(\d{0,3})/, (_, a, b, c) =>
@@ -407,6 +411,27 @@ export default function App() {
             </div>
             {error && <p className="error">{error}</p>}
           </section>
+
+          {snap.nearby && snap.nearby.length > 0 && (
+            <section className="recents">
+              <p className="label">{tr("nearby")}</p>
+              {snap.nearby.map((item) => (
+                <button
+                  key={item.id}
+                  className="recent-item"
+                  onClick={() => {
+                    setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
+                    setPasswordStep(true);
+                  }}
+                >
+                  <span className="recent-icon">{item.os === "macos" ? "⌘" : "▣"}</span>
+                  <span className="recent-name">{item.name}</span>
+                  <span className="muted">{item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3")}</span>
+                  <span className="dot ready" />
+                </button>
+              ))}
+            </section>
+          )}
 
           {snap.recents.length > 0 && (
             <section className="recents">

@@ -1,4 +1,5 @@
 pub mod identity;
+pub mod lan;
 pub mod password;
 pub mod recents;
 pub mod settings;
@@ -6,6 +7,7 @@ pub mod signaling;
 pub mod state;
 
 pub use identity::{DeviceIdentity, format_password};
+pub use lan::NearbyDevice;
 pub use password::PasswordVault;
 pub use recents::{RecentDevice, RecentsStore};
 pub use settings::AppSettings;

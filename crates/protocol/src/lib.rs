@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const DEFAULT_SIGNALING_PORT: u16 = 7829;
+pub const DEFAULT_DISCOVERY_PORT: u16 = 7830;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]

@@ -6,10 +6,10 @@
 
 下载：[GitHub Releases](https://github.com/linux503/RemoteX/releases)
 
-- macOS（Intel + Apple Silicon 通用包）: `RemoteX_0.2.0_universal.dmg`
-- Windows: 即将推出
+- macOS：下载 DMG，把 RemoteX 拖进「应用程序」，打开即可
+- Windows：运行安装包（当前用户，无需管理员），装完从开始菜单打开
 
-信令服务已内嵌在桌面端（`0.0.0.0:7829`）。两台电脑在同一局域网时：A 打开 RemoteX 做主机，B 在设置 → 连接里把信令地址改成 A 显示的 `ws://局域网IP:7829/ws`。
+同一 Wi-Fi 下，两边都打开 RemoteX，输入对方设备码和临时密码即可连接。首页会列出附近设备。
 
 ## Run locally
 
@@ -27,8 +27,6 @@ REMOTEX_DATA_DIR=/tmp/remotex-a npm run tauri dev
 REMOTEX_DATA_DIR=/tmp/remotex-b npm run tauri dev
 ```
 
-独立信令（可选）：`cargo run -p signaling`
-
 ## v0.2
 
-新色系、连接延迟 / 速度显示、GitHub 官网与 Mac 下载入口。
+新色系、局域网自动发现、Windows 安装包、GitHub 官网。

@@ -2,6 +2,13 @@ export type OsKind = "macos" | "windows" | "linux" | "unknown";
 
 export type SessionPhase = "idle" | "connecting" | "incoming" | "connected";
 
+export interface NearbyDevice {
+  id: string;
+  name: string;
+  os: string;
+  ws: string;
+}
+
 export interface RecentDevice {
   id: string;
   name: string;
@@ -63,9 +70,11 @@ export interface Snapshot {
   session: SessionView | null;
   incoming: IncomingView | null;
   recents: RecentDevice[];
+  nearby: NearbyDevice[];
   settings: AppSettings;
   unattended: boolean;
   has_permanent_password: boolean;
+  last_error: string | null;
 }
 
 export const defaultSettings = (): AppSettings => ({
@@ -117,9 +126,11 @@ export const mockSnapshot = (): Snapshot => ({
       last_seen: new Date().toISOString(),
     },
   ],
+  nearby: [],
   settings: defaultSettings(),
   unattended: false,
   has_permanent_password: false,
+  last_error: null,
 });
 
 export function previewSnapshot(scene: string | null): Snapshot {

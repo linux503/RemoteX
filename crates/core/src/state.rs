@@ -7,6 +7,7 @@ use std::time::Instant;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::identity::{data_dir, format_password, DeviceIdentity};
+use crate::lan::{self, LanDiscovery, NearbyDevice};
 use crate::password::{AuthOutcome, PasswordVault};
 use crate::recents::RecentsStore;
 use crate::settings::AppSettings;
@@ -39,9 +40,11 @@ pub struct Snapshot {
     pub session: Option<SessionView>,
     pub incoming: Option<IncomingView>,
     pub recents: Vec<crate::RecentDevice>,
+    pub nearby: Vec<NearbyDevice>,
     pub settings: AppSettings,
     pub unattended: bool,
     pub has_permanent_password: bool,
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -82,6 +85,10 @@ pub struct AppState {
     session: Option<SessionView>,
     incoming: Option<IncomingView>,
     outgoing: mpsc::Sender<ClientMsg>,
+    incoming_tx: mpsc::Sender<ServerMsg>,
+    peer_outgoing: Option<mpsc::Sender<ClientMsg>>,
+    lan: Option<Arc<LanDiscovery>>,
+    last_error: Option<String>,
     heartbeat_sent: Option<Instant>,
     network_rtt_ms: u32,
 }
@@ -116,6 +123,10 @@ impl AppState {
             session: None,
             incoming: None,
             outgoing: out_tx.clone(),
+            incoming_tx: in_tx.clone(),
+            peer_outgoing: None,
+            lan: None,
+            last_error: None,
             heartbeat_sent: None,
             network_rtt_ms: 0,
         }));
@@ -124,6 +135,16 @@ impl AppState {
         tokio::spawn(async move {
             let _ = client.run(register, out_rx, in_tx).await;
         });
+
+        if let Ok(lan) = LanDiscovery::start(
+            identity.device_id.clone(),
+            identity.name.clone(),
+            identity.os.clone(),
+        )
+        .await
+        {
+            state.lock().await.lan = Some(lan);
+        }
 
         let ping_state = state.clone();
         let ping_events = evt_tx.clone();
@@ -137,7 +158,7 @@ impl AppState {
                 if guard.phase == SessionPhase::Connected {
                     guard.tick_link_stats();
                 }
-                let snap = guard.snapshot();
+                let snap = guard.snapshot_async().await;
                 drop(guard);
                 let _ = ping_events.send(AppEvent::Snapshot(snap)).await;
             }
@@ -148,7 +169,7 @@ impl AppState {
             while let Some(msg) = in_rx.recv().await {
                 let mut guard = loop_state.lock().await;
                 guard.handle_server(msg).await;
-                let snap = guard.snapshot();
+                let snap = guard.snapshot_async().await;
                 let _ = evt_tx.send(AppEvent::Snapshot(snap)).await;
             }
         });
@@ -167,20 +188,26 @@ impl AppState {
             ready: self.ready,
             rtt_ms: self.network_rtt_ms,
             signaling_url: self.settings.signaling_url.clone(),
-            lan_url: format!(
-                "ws://{}:{}/ws",
-                local_lan_ip().unwrap_or_else(|| "127.0.0.1".into()),
-                protocol::DEFAULT_SIGNALING_PORT
-            ),
+            lan_url: lan::local_ws(),
             hosting: crate::HOSTING.load(std::sync::atomic::Ordering::SeqCst),
             phase: self.phase.clone(),
             session: self.session.clone(),
             incoming: self.incoming.clone(),
             recents: self.recents.items.clone(),
+            nearby: Vec::new(),
             settings: self.settings.clone(),
             unattended: self.settings.unattended,
             has_permanent_password: self.passwords.has_permanent(),
+            last_error: self.last_error.clone(),
         }
+    }
+
+    pub async fn snapshot_async(&self) -> Snapshot {
+        let mut snap = self.snapshot();
+        if let Some(lan) = &self.lan {
+            snap.nearby = lan.list().await;
+        }
+        snap
     }
 
     pub fn refresh_password(&mut self) {
@@ -205,6 +232,7 @@ impl AppState {
         if target_id == self.identity.device_id {
             return Err(crate::Error::Message("You cannot connect to this device".into()));
         }
+        self.last_error = None;
         self.phase = SessionPhase::Connecting;
         self.session = Some(SessionView {
             session_id: String::new(),
@@ -217,16 +245,46 @@ impl AppState {
             path: "unknown".into(),
             quality: self.settings.quality.clone(),
         });
-        self.outgoing
-            .send(ClientMsg::Connect {
-                target_id,
-                password,
-                from_name: self.identity.name.clone(),
-                from_os: self.identity.os.clone(),
-            })
-            .await
-            .ok();
+        let url = self.resolve_peer_url(&target_id).await;
+        let msg = ClientMsg::Connect {
+            target_id,
+            password,
+            from_name: self.identity.name.clone(),
+            from_os: self.identity.os.clone(),
+        };
+        if lan::is_own_hub(&url) {
+            self.peer_outgoing = None;
+            self.outgoing.send(msg).await.ok();
+        } else {
+            self.dial_peer_hub(url, msg).await;
+        }
         Ok(())
+    }
+
+    async fn resolve_peer_url(&self, id: &str) -> String {
+        if let Some(lan) = &self.lan {
+            if let Some(dev) = lan.lookup(id).await {
+                return dev.ws;
+            }
+        }
+        self.settings.signaling_url.clone()
+    }
+
+    async fn dial_peer_hub(&mut self, url: String, connect: ClientMsg) {
+        self.peer_outgoing = None;
+        let (tx, rx) = mpsc::channel(32);
+        let register = ClientMsg::register(&DeviceInfo {
+            id: self.identity.device_id.clone(),
+            name: self.identity.name.clone(),
+            os: self.identity.os.clone(),
+        });
+        let incoming = self.incoming_tx.clone();
+        tokio::spawn(async move {
+            let client = SignalingClient::new(url);
+            let _ = client.run(register, rx, incoming).await;
+        });
+        let _ = tx.send(connect).await;
+        self.peer_outgoing = Some(tx);
     }
 
     pub async fn accept(&mut self) {
@@ -256,13 +314,16 @@ impl AppState {
 
     pub async fn hangup(&mut self) {
         if let Some(session) = &self.session {
-            self.outgoing
-                .send(ClientMsg::Hangup {
-                    session_id: session.session_id.clone(),
-                })
-                .await
-                .ok();
+            let hangup = ClientMsg::Hangup {
+                session_id: session.session_id.clone(),
+            };
+            if let Some(peer) = &self.peer_outgoing {
+                let _ = peer.send(hangup).await;
+            } else {
+                let _ = self.outgoing.send(hangup).await;
+            }
         }
+        self.peer_outgoing = None;
         self.session = None;
         self.incoming = None;
         self.phase = SessionPhase::Idle;
@@ -349,21 +410,37 @@ impl AppState {
             ServerMsg::Declined { .. } => {
                 self.session = None;
                 self.incoming = None;
+                self.peer_outgoing = None;
                 self.phase = SessionPhase::Idle;
+                self.last_error = Some("The other device declined".into());
             }
-            ServerMsg::AuthFailed { .. } | ServerMsg::PeerOffline { .. } => {
+            ServerMsg::AuthFailed { message, .. } => {
                 self.session = None;
+                self.peer_outgoing = None;
                 self.phase = SessionPhase::Idle;
+                self.last_error = Some(message);
+            }
+            ServerMsg::PeerOffline { .. } => {
+                self.session = None;
+                self.peer_outgoing = None;
+                self.phase = SessionPhase::Idle;
+                self.last_error = Some(
+                    "Device not found on this Wi-Fi. Open RemoteX on the other computer first."
+                        .into(),
+                );
             }
             ServerMsg::Hangup { .. } => {
                 self.session = None;
                 self.incoming = None;
+                self.peer_outgoing = None;
                 self.phase = SessionPhase::Idle;
             }
-            ServerMsg::Error { .. } => {
+            ServerMsg::Error { message } => {
                 if self.phase == SessionPhase::Connecting {
                     self.phase = SessionPhase::Idle;
                     self.session = None;
+                    self.peer_outgoing = None;
+                    self.last_error = Some(message);
                 }
             }
             ServerMsg::HeartbeatAck => {
@@ -394,14 +471,5 @@ fn quality_target_kbps(quality: &str) -> u32 {
         "high" => 14500,
         "original" => 24000,
         _ => 8200,
-    }
-}
-
-fn local_lan_ip() -> Option<String> {
-    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
-    socket.connect("8.8.8.8:80").ok()?;
-    match socket.local_addr().ok()?.ip() {
-        std::net::IpAddr::V4(ip) if !ip.is_loopback() => Some(ip.to_string()),
-        _ => None,
     }
 }

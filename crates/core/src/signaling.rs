@@ -29,6 +29,9 @@ impl SignalingClient {
                 Ok(()) => info!("signaling socket closed"),
                 Err(err) => warn!("signaling error: {err}"),
             }
+            if outgoing.is_closed() {
+                return Ok(());
+            }
             tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
         }
     }
