@@ -103,7 +103,7 @@ export const mockSnapshot = (): Snapshot => ({
   incoming: null,
   recents: [
     {
-      id: "825391726",
+      id: "194827563",
       name: "Office PC",
       os: "windows",
       favorite: true,
@@ -111,7 +111,7 @@ export const mockSnapshot = (): Snapshot => ({
     },
     {
       id: "391285663",
-      name: "MacBook Pro",
+      name: "Studio Mac",
       os: "macos",
       favorite: false,
       last_seen: new Date().toISOString(),

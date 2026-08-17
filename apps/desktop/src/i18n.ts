@@ -95,6 +95,8 @@ const en = {
   openSettings: "Open Settings",
   aboutTagline: "Fast Remote Desktop",
   aboutNote: "No account. No setup. Just connect.",
+  comingSoon: "Coming in a later update",
+  permHint: "Grant these in macOS System Settings so RemoteX can share and control the screen.",
 };
 
 const zh: typeof en = {
@@ -192,6 +194,8 @@ const zh: typeof en = {
   openSettings: "打开系统设置",
   aboutTagline: "极速远程桌面",
   aboutNote: "无需账号。无需配置。直接连接。",
+  comingSoon: "后续版本推出",
+  permHint: "请在 macOS 系统设置中授权，RemoteX 才能共享和控制屏幕。",
 };
 
 const dict = { en, zh };

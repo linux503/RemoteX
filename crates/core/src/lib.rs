@@ -12,7 +12,10 @@ pub use settings::AppSettings;
 pub use signaling::SignalingClient;
 pub use state::{AppEvent, AppState, SessionPhase, Snapshot};
 
+use std::sync::atomic::AtomicBool;
 use thiserror::Error;
+
+pub static HOSTING: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Error)]
 pub enum Error {

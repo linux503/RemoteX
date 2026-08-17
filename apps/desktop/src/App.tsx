@@ -44,11 +44,21 @@ export default function App() {
   const [qualityOpen, setQualityOpen] = useState(false);
   const [displayOpen, setDisplayOpen] = useState(false);
   const [connectStep, setConnectStep] = useState(0);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
-    if (!previewScene) return;
-    document.documentElement.style.colorScheme = "dark";
-  }, []);
+    const theme = snap.settings.theme;
+    const root = document.documentElement;
+    if (previewScene) {
+      root.dataset.theme = "dark";
+      return;
+    }
+    if (theme === "light" || theme === "dark") {
+      root.dataset.theme = theme;
+      return;
+    }
+    delete root.dataset.theme;
+  }, [snap.settings.theme]);
 
   useEffect(() => {
     if (previewScene === "connecting") {
@@ -83,6 +93,21 @@ export default function App() {
     })();
     return () => unlisten?.();
   }, []);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    void (async () => {
+      const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
+      const win = getCurrentWindow();
+      if (snap.phase === "connected") {
+        await win.setSize(new LogicalSize(980, 720));
+        await win.setMinSize(new LogicalSize(720, 520));
+        return;
+      }
+      await win.setMinSize(new LogicalSize(400, 620));
+      await win.setSize(new LogicalSize(440, 720));
+    })();
+  }, [snap.phase]);
 
   useEffect(() => {
     if (isTauri() || previewScene || snap.phase !== "connected") return;
@@ -120,6 +145,11 @@ export default function App() {
     await navigator.clipboard.writeText(value.replace(/\s/g, ""));
     setCopied(label);
     window.setTimeout(() => setCopied(""), 1200);
+  };
+
+  const showSoon = () => {
+    setToast(tr("comingSoon"));
+    window.setTimeout(() => setToast(""), 1400);
   };
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -228,8 +258,12 @@ export default function App() {
           <button className="ghost" onClick={() => setQualityOpen((v) => !v)}>
             {qualityLabel}
           </button>
-          <button className="ghost">{tr("keys")}</button>
-          <button className="ghost">{tr("files")}</button>
+          <button className="ghost" onClick={showSoon}>
+            {tr("keys")}
+          </button>
+          <button className="ghost" onClick={showSoon}>
+            {tr("files")}
+          </button>
           <button className="danger" onClick={() => run(() => isTauri() ? invoke("hangup") : Promise.resolve(setSnap({ ...snap, phase: "idle", session: null })))}>
             {tr("end")}
           </button>
@@ -288,6 +322,7 @@ export default function App() {
             <span>{snap.session.peer_os === "macos" ? "macOS" : "Windows"} {tr("screen")}</span>
           </div>
         </div>
+        {toast && <div className="toast">{toast}</div>}
       </div>
     );
   }
@@ -329,14 +364,6 @@ export default function App() {
               {snap.ready ? tr("ready") : tr("connectingNetwork")}
               {snap.ready && snap.rtt_ms > 0 ? ` · ${snap.rtt_ms}ms` : ""}
             </div>
-            {snap.lan_url && (
-              <p className="lan-url">
-                <span>{tr("lanHint")}</span>
-                <button type="button" className="lan-copy" onClick={() => copy("LAN", snap.lan_url)}>
-                  {copied === "LAN" ? "✓" : snap.lan_url}
-                </button>
-              </p>
-            )}
             <p className="label">{tr("tempPassword")}</p>
             <div className="password-row">
               <strong>{hidePassword ? "• • • • • •" : snap.formatted_password}</strong>
@@ -405,9 +432,11 @@ export default function App() {
             </section>
           )}
 
-          <footer>RemoteX v0.2</footer>
+          <footer>RemoteX v0.2.0</footer>
         </main>
       )}
+
+      {toast && view !== "settings" && snap.phase !== "connected" && <div className="toast">{toast}</div>}
 
       {passwordStep && (
         <div className="overlay">
@@ -467,7 +496,28 @@ export default function App() {
               <button onClick={() => run(() => isTauri() ? invoke("decline") : Promise.resolve(setSnap({ ...snap, phase: "idle", incoming: null })))}>
                 {tr("decline")}
               </button>
-              <button className="primary" onClick={() => run(() => isTauri() ? invoke("accept") : Promise.resolve())}>
+              <button className="primary" onClick={() => run(async () => {
+                if (isTauri()) {
+                  await invoke("accept");
+                  return;
+                }
+                setSnap((prev) => ({
+                  ...prev,
+                  phase: "connected",
+                  incoming: null,
+                  session: {
+                    session_id: "preview",
+                    peer_id: prev.incoming?.from_id ?? "391285663",
+                    peer_name: prev.incoming?.from_name ?? "Office PC",
+                    peer_os: prev.incoming?.from_os ?? "windows",
+                    rtt_ms: 36,
+                    down_kbps: 8420,
+                    up_kbps: 186,
+                    path: "p2p",
+                    quality: prev.settings.quality,
+                  },
+                }));
+              })}>
                 {tr("accept")}
               </button>
             </div>
@@ -542,6 +592,7 @@ function Settings({
 }) {
   const [tab, setTab] = useState("general");
   const [permanent, setPermanent] = useState("");
+  const [copiedLan, setCopiedLan] = useState(false);
   const tr = (key: MessageKey) => t(locale, key);
   const tabs: { id: string; key: MessageKey }[] = [
     { id: "general", key: "tabGeneral" },
@@ -554,125 +605,153 @@ function Settings({
 
   return (
     <main className="settings">
-      <button className="back" onClick={onBack}>← {tr("back")}</button>
-      <h1>{tr("settings")}</h1>
-      <nav className="tabs">
-        {tabs.map((item) => (
-          <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
-            {tr(item.key)}
-          </button>
-        ))}
-      </nav>
+      <header className="settings-head">
+        <button className="back" onClick={onBack}>← {tr("back")}</button>
+        <h1>{tr("settings")}</h1>
+      </header>
+      <div className="settings-shell">
+        <nav className="settings-nav">
+          {tabs.map((item) => (
+            <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
+              {tr(item.key)}
+            </button>
+          ))}
+        </nav>
+        <div className="settings-pane">
+          {tab === "general" && (
+            <section className="card">
+              <p className="pane-title">{tr("tabGeneral")}</p>
+              <Toggle label={tr("startAtLogin")} checked={snap.settings.start_at_login} onChange={(v) => onSettings({ start_at_login: v })} />
+              <Toggle label={tr("minimizeToTray")} checked={snap.settings.minimize_to_tray} onChange={(v) => onSettings({ minimize_to_tray: v })} />
+              <Toggle label={tr("autoUpdate")} checked={snap.settings.auto_update} onChange={(v) => onSettings({ auto_update: v })} />
+              <label className="set-row">
+                <span>{tr("language")}</span>
+                <select value={snap.settings.language} onChange={(e) => onSettings({ language: e.target.value })}>
+                  <option value="system">{tr("languageSystem")}</option>
+                  <option value="en">{tr("languageEn")}</option>
+                  <option value="zh">{tr("languageZh")}</option>
+                </select>
+              </label>
+              <label className="set-row">
+                <span>{tr("theme")}</span>
+                <select value={snap.settings.theme} onChange={(e) => onSettings({ theme: e.target.value })}>
+                  <option value="system">{tr("themeSystem")}</option>
+                  <option value="light">{tr("themeLight")}</option>
+                  <option value="dark">{tr("themeDark")}</option>
+                </select>
+              </label>
+            </section>
+          )}
 
-      {tab === "general" && (
-        <section className="card">
-          <Toggle label={tr("startAtLogin")} checked={snap.settings.start_at_login} onChange={(v) => onSettings({ start_at_login: v })} />
-          <Toggle label={tr("minimizeToTray")} checked={snap.settings.minimize_to_tray} onChange={(v) => onSettings({ minimize_to_tray: v })} />
-          <Toggle label={tr("autoUpdate")} checked={snap.settings.auto_update} onChange={(v) => onSettings({ auto_update: v })} />
-          <label className="field">
-            {tr("language")}
-            <select value={snap.settings.language} onChange={(e) => onSettings({ language: e.target.value })}>
-              <option value="system">{tr("languageSystem")}</option>
-              <option value="en">{tr("languageEn")}</option>
-              <option value="zh">{tr("languageZh")}</option>
-            </select>
-          </label>
-          <label className="field">
-            {tr("theme")}
-            <select value={snap.settings.theme} onChange={(e) => onSettings({ theme: e.target.value })}>
-              <option value="system">{tr("themeSystem")}</option>
-              <option value="light">{tr("themeLight")}</option>
-              <option value="dark">{tr("themeDark")}</option>
-            </select>
-          </label>
-        </section>
-      )}
+          {tab === "connection" && (
+            <section className="card">
+              <p className="pane-title">{tr("tabConnection")}</p>
+              <Toggle label={tr("preferP2p")} checked={snap.settings.p2p_preferred} onChange={(v) => onSettings({ p2p_preferred: v })} />
+              <Toggle label={tr("hardwareEncode")} checked={snap.settings.hardware_encode} onChange={(v) => onSettings({ hardware_encode: v })} />
+              <label className="set-stack">
+                <span>{tr("signalingServer")}</span>
+                <input
+                  value={snap.settings.signaling_url}
+                  onChange={(e) => onSettings({ signaling_url: e.target.value })}
+                />
+              </label>
+              <p className="hint">{tr("signalingHint")}</p>
+              {snap.lan_url && (
+                <>
+                  <p className="hint">{tr("lanHint")}</p>
+                  <button
+                    type="button"
+                    className="lan-copy"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(snap.lan_url);
+                      setCopiedLan(true);
+                      window.setTimeout(() => setCopiedLan(false), 1200);
+                    }}
+                  >
+                    {copiedLan ? "✓" : snap.lan_url}
+                  </button>
+                </>
+              )}
+              <p className="hint">{tr("connection")}: {snap.ready ? tr("online") : tr("offline")}</p>
+            </section>
+          )}
 
-      {tab === "connection" && (
-        <section className="card">
-          <Toggle label={tr("preferP2p")} checked={snap.settings.p2p_preferred} onChange={(v) => onSettings({ p2p_preferred: v })} />
-          <Toggle label={tr("hardwareEncode")} checked={snap.settings.hardware_encode} onChange={(v) => onSettings({ hardware_encode: v })} />
-          <label className="field">
-            {tr("signalingServer")}
-            <input
-              value={snap.settings.signaling_url}
-              onChange={(e) => onSettings({ signaling_url: e.target.value })}
-            />
-          </label>
-          <p className="muted">{tr("signalingHint")}</p>
-          {snap.lan_url && <p className="muted">{snap.lan_url}</p>}
-          <p className="muted">{tr("connection")}: {snap.ready ? tr("online") : tr("offline")}</p>
-        </section>
-      )}
+          {tab === "security" && (
+            <section className="card">
+              <p className="pane-title">{tr("tabSecurity")}</p>
+              <Toggle label={tr("unattended")} checked={snap.settings.unattended} onChange={(v) => onSettings({ unattended: v })} />
+              <label className="set-stack">
+                <span>{tr("permanentPassword")}</span>
+                <input
+                  type="password"
+                  value={permanent}
+                  placeholder={snap.has_permanent_password ? "••••••••" : tr("setPassword")}
+                  onChange={(e) => setPermanent(e.target.value)}
+                  onBlur={() => permanent && onPermanentPassword(permanent)}
+                />
+              </label>
+              <Toggle label={tr("askBeforeConnecting")} checked={snap.settings.require_confirm} onChange={(v) => onSettings({ require_confirm: v })} />
+              <Toggle label={tr("allowClipboard")} checked={snap.settings.allow_clipboard} onChange={(v) => onSettings({ allow_clipboard: v })} />
+              <Toggle label={tr("allowFileTransfer")} checked={snap.settings.allow_file_transfer} onChange={(v) => onSettings({ allow_file_transfer: v })} />
+              <Toggle label={tr("lockAfterSession")} checked={snap.settings.lock_after_session} onChange={(v) => onSettings({ lock_after_session: v })} />
+            </section>
+          )}
 
-      {tab === "security" && (
-        <section className="card">
-          <Toggle label={tr("unattended")} checked={snap.settings.unattended} onChange={(v) => onSettings({ unattended: v })} />
-          <label className="field">
-            {tr("permanentPassword")}
-            <input
-              type="password"
-              value={permanent}
-              placeholder={snap.has_permanent_password ? "••••••••" : tr("setPassword")}
-              onChange={(e) => setPermanent(e.target.value)}
-              onBlur={() => permanent && onPermanentPassword(permanent)}
-            />
-          </label>
-          <Toggle label={tr("askBeforeConnecting")} checked={snap.settings.require_confirm} onChange={(v) => onSettings({ require_confirm: v })} />
-          <Toggle label={tr("allowClipboard")} checked={snap.settings.allow_clipboard} onChange={(v) => onSettings({ allow_clipboard: v })} />
-          <Toggle label={tr("allowFileTransfer")} checked={snap.settings.allow_file_transfer} onChange={(v) => onSettings({ allow_file_transfer: v })} />
-          <Toggle label={tr("lockAfterSession")} checked={snap.settings.lock_after_session} onChange={(v) => onSettings({ lock_after_session: v })} />
-        </section>
-      )}
+          {tab === "display" && (
+            <section className="card">
+              <p className="pane-title">{tr("tabDisplay")}</p>
+              <label className="set-row">
+                <span>{tr("quality")}</span>
+                <select value={snap.settings.quality} onChange={(e) => onSettings({ quality: e.target.value })}>
+                  <option value="smooth">{tr("qualitySmooth")}</option>
+                  <option value="balanced">{tr("qualityBalanced")}</option>
+                  <option value="high">{tr("qualityHigh")}</option>
+                  <option value="original">{tr("qualityOriginal")}</option>
+                </select>
+              </label>
+              <label className="set-row">
+                <span>{tr("fps")}</span>
+                <select value={snap.settings.fps} onChange={(e) => onSettings({ fps: Number(e.target.value) })}>
+                  <option value={30}>30</option>
+                  <option value={60}>60</option>
+                  <option value={120}>120</option>
+                </select>
+              </label>
+            </section>
+          )}
 
-      {tab === "display" && (
-        <section className="card">
-          <label className="field">
-            {tr("quality")}
-            <select value={snap.settings.quality} onChange={(e) => onSettings({ quality: e.target.value })}>
-              <option value="smooth">{tr("qualitySmooth")}</option>
-              <option value="balanced">{tr("qualityBalanced")}</option>
-              <option value="high">{tr("qualityHigh")}</option>
-              <option value="original">{tr("qualityOriginal")}</option>
-            </select>
-          </label>
-          <label className="field">
-            {tr("fps")}
-            <select value={snap.settings.fps} onChange={(e) => onSettings({ fps: Number(e.target.value) })}>
-              <option value={30}>30</option>
-              <option value={60}>60</option>
-              <option value={120}>120</option>
-            </select>
-          </label>
-        </section>
-      )}
+          {tab === "permissions" && (
+            <section className="card permissions">
+              <p className="pane-title">{tr("systemPermissions")}</p>
+              <p className="hint">{tr("permHint")}</p>
+              <div className="perm"><span className="dot ready" /> {tr("screenRecording")}</div>
+              <div className="perm"><span className="dot ready" /> {tr("accessibility")}</div>
+              <div className="perm"><span className="dot offline" /> {tr("inputMonitoring")}</div>
+              <button
+                className="primary perm-btn"
+                onClick={() => {
+                  if (isTauri()) void invoke("open_permission_settings");
+                }}
+              >
+                {tr("openSettings")}
+              </button>
+            </section>
+          )}
 
-      {tab === "permissions" && (
-        <section className="card permissions">
-          <p className="label">{tr("systemPermissions")}</p>
-          <div className="perm"><span className="dot ready" /> {tr("screenRecording")}</div>
-          <div className="perm"><span className="dot ready" /> {tr("accessibility")}</div>
-          <div className="perm"><span className="dot offline" /> {tr("inputMonitoring")}</div>
-          <button
-            className="primary"
-            onClick={() => {
-              if (isTauri()) void invoke("open_permission_settings");
-            }}
-          >
-            {tr("openSettings")}
-          </button>
-        </section>
-      )}
-
-      {tab === "about" && (
-        <section className="card about">
-          <Logo size={40} />
-          <h2>RemoteX</h2>
-          <p>{tr("aboutTagline")}</p>
-          <p className="muted">{tr("aboutNote")}</p>
-          <p className="muted">v0.2.0</p>
-        </section>
-      )}
+          {tab === "about" && (
+            <section className="card about">
+              <Logo size={48} />
+              <h2>RemoteX</h2>
+              <p>{tr("aboutTagline")}</p>
+              <p className="muted">{tr("aboutNote")}</p>
+              <p className="muted">v0.2.0 · macOS / Windows</p>
+              <a className="github-link" href="https://github.com/linux503/RemoteX" target="_blank" rel="noreferrer">
+                GitHub
+              </a>
+            </section>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
@@ -687,9 +766,16 @@ function Toggle({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="toggle">
+    <div className="set-row">
       <span>{label}</span>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-    </label>
+      <button
+        type="button"
+        role="switch"
+        className={`switch ${checked ? "on" : ""}`}
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+      />
+    </div>
   );
 }

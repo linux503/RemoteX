@@ -33,6 +33,8 @@ pub struct Snapshot {
     pub ready: bool,
     pub rtt_ms: u32,
     pub signaling_url: String,
+    pub lan_url: String,
+    pub hosting: bool,
     pub phase: SessionPhase,
     pub session: Option<SessionView>,
     pub incoming: Option<IncomingView>,
@@ -165,6 +167,12 @@ impl AppState {
             ready: self.ready,
             rtt_ms: self.network_rtt_ms,
             signaling_url: self.settings.signaling_url.clone(),
+            lan_url: format!(
+                "ws://{}:{}/ws",
+                local_lan_ip().unwrap_or_else(|| "127.0.0.1".into()),
+                protocol::DEFAULT_SIGNALING_PORT
+            ),
+            hosting: crate::HOSTING.load(std::sync::atomic::Ordering::SeqCst),
             phase: self.phase.clone(),
             session: self.session.clone(),
             incoming: self.incoming.clone(),
@@ -386,5 +394,14 @@ fn quality_target_kbps(quality: &str) -> u32 {
         "high" => 14500,
         "original" => 24000,
         _ => 8200,
+    }
+}
+
+fn local_lan_ip() -> Option<String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    match socket.local_addr().ok()?.ip() {
+        std::net::IpAddr::V4(ip) if !ip.is_loopback() => Some(ip.to_string()),
+        _ => None,
     }
 }

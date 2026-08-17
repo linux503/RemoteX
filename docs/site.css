@@ -316,7 +316,7 @@ h2 { font-size: clamp(28px, 4vw, 44px); margin: 10px 0 0; max-width: 16em; }
 
 .shot-bento {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--gap);
   align-items: stretch;
 }
@@ -349,7 +349,8 @@ h2 { font-size: clamp(28px, 4vw, 44px); margin: 10px 0 0; max-width: 16em; }
 .shot span { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .shot-home .window img,
 .shot-connect .window img,
-.shot-incoming .window img {
+.shot-incoming .window img,
+.shot-settings .window img {
   aspect-ratio: 440 / 680;
   object-fit: cover;
   object-position: top;
@@ -410,6 +411,14 @@ h2 { font-size: clamp(28px, 4vw, 44px); margin: 10px 0 0; max-width: 16em; }
 .card h3 { margin: 8px 0 10px; font-size: 22px; }
 .card > p { color: var(--muted); margin: 0; line-height: 1.55; flex: 1; }
 .card .cta { margin: 22px 0 0; }
+.btn.disabled,
+.btn[aria-disabled="true"] {
+  pointer-events: none;
+  opacity: 0.5;
+  box-shadow: none;
+  background: rgba(255, 59, 85, 0.2);
+}
+.btn.disabled:after { display: none; }
 .os {
   color: var(--accent);
   letter-spacing: .14em;
@@ -437,9 +446,6 @@ footer {
 
 @media (max-width: 1020px) {
   .bento { grid-template-columns: 1fr 1fr; }
-  .shot-bento { grid-template-columns: 1fr 1fr; }
-  .shot-incoming { grid-column: 1 / -1; }
-  .shot-incoming .window img { aspect-ratio: 16 / 9; object-position: top; }
 }
 @media (max-width: 860px) {
   .wrap { width: min(var(--wrap), calc(100% - 32px)); }
@@ -448,7 +454,8 @@ footer {
   .shot-session, .shot-incoming { grid-column: auto; }
   .shot-home .window img,
   .shot-connect .window img,
-  .shot-incoming .window img { aspect-ratio: 440 / 640; }
+  .shot-incoming .window img,
+  .shot-settings .window img { aspect-ratio: 440 / 640; }
   header { top: 8px; }
   nav { display: none; }
   .header-actions { margin-left: auto; }
