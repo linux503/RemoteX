@@ -419,43 +419,6 @@ h2 { font-size: clamp(28px, 4vw, 44px); margin: 10px 0 0; max-width: 16em; }
   margin: 0;
 }
 
-.mac-fix {
-  margin-top: var(--gap);
-  padding: 24px 28px;
-  border-radius: var(--radius);
-  border: 1px dashed rgba(255,59,85,.35);
-  background: rgba(255,59,85,.06);
-}
-.mac-fix .os { text-transform: none; letter-spacing: .04em; }
-.mac-fix p { color: var(--muted); margin: 8px 0 14px; max-width: 72ch; line-height: 1.55; }
-.cmd {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 10px 10px 16px;
-  border-radius: 14px;
-  background: #14080b;
-  border: 1px solid var(--line);
-}
-.cmd code {
-  flex: 1;
-  min-width: 0;
-  font: 500 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #ffd6db;
-  overflow-wrap: anywhere;
-}
-.copy-cmd {
-  border: 0;
-  border-radius: 12px;
-  min-height: 36px;
-  padding: 0 14px;
-  font: 700 12px Outfit, system-ui, sans-serif;
-  color: #fff;
-  background: linear-gradient(135deg, #ff4d64, #9b1230);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
 footer {
   display: flex;
   justify-content: space-between;

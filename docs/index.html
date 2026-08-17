@@ -227,14 +227,6 @@
             </div>
           </article>
         </div>
-        <aside class="mac-fix reveal">
-          <p class="os" data-i18n="macFixTitle">macOS says it’s damaged?</p>
-          <p data-i18n="macFixDesc">Unsigned GitHub builds get quarantined by Chrome. Drag RemoteX into Applications, then paste this in Terminal:</p>
-          <div class="cmd">
-            <code>xattr -cr /Applications/RemoteX.app && open /Applications/RemoteX.app</code>
-            <button type="button" class="copy-cmd" data-i18n="copyCmd">Copy</button>
-          </div>
-        </aside>
       </section>
 
       <footer>
@@ -255,13 +247,6 @@
       window.addEventListener("pointermove", (e) => {
         document.body.style.setProperty("--mx", e.clientX + "px");
         document.body.style.setProperty("--my", e.clientY + "px");
-      });
-      const copyBtn = document.querySelector(".copy-cmd");
-      const cmd = "xattr -cr /Applications/RemoteX.app && open /Applications/RemoteX.app";
-      copyBtn?.addEventListener("click", async () => {
-        await navigator.clipboard.writeText(cmd);
-        copyBtn.textContent = copyBtn.getAttribute("data-copied") || "Copied";
-        setTimeout(() => { copyBtn.textContent = copyBtn.getAttribute("data-i18n-copy") || "Copy"; }, 1400);
       });
     </script>
   </body>

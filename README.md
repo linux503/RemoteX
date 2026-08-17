@@ -10,12 +10,6 @@
 - macOS Intel: `RemoteX_0.2.0_x64.dmg`
 - Windows: `RemoteX_0.2.0_x64-setup.exe`
 
-macOS 若提示「已损坏，移到废纸篓」，把 App 拖进「应用程序」后在终端执行：
-
-```bash
-xattr -cr /Applications/RemoteX.app && open /Applications/RemoteX.app
-```
-
 ## Run locally
 
 ```bash
