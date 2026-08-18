@@ -6,9 +6,9 @@
   --text: #e8e8ed;
   --muted: #8e8e93;
   --line: rgba(255, 255, 255, 0.08);
-  --accent: #ef4444;
-  --accent-soft: rgba(239, 68, 68, 0.12);
-  --accent-glow: rgba(239, 68, 68, 0.25);
+  --accent: #d84c4c;
+  --accent-soft: rgba(216, 76, 76, 0.08);
+  --accent-glow: rgba(216, 76, 76, 0.12);
   --white: #fff;
   --wrap: 1080px;
   --radius: 16px;
@@ -25,6 +25,9 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  background-image:
+    radial-gradient(900px 480px at 50% -12%, rgba(255, 255, 255, 0.03), transparent 62%),
+    linear-gradient(180deg, #09090b 0%, #0d0d10 54%, #0a0a0c 100%);
 }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
@@ -106,10 +109,11 @@ img { max-width: 100%; display: block; }
   font-size: 13px;
   font-weight: 600;
   color: var(--white);
-  background: var(--accent);
-  transition: opacity .2s;
+  background: linear-gradient(180deg, #27272d, #18181c);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: opacity .2s, border-color .2s, background .2s;
 }
-.nav-cta:hover { opacity: 0.85; }
+.nav-cta:hover { opacity: 1; border-color: rgba(216, 76, 76, 0.2); background: linear-gradient(180deg, #2d2d33, #1b1b20); }
 
 /* ===== BUTTONS ===== */
 .btn-primary {
@@ -122,12 +126,14 @@ img { max-width: 100%; display: block; }
   font-weight: 600;
   font-size: 15px;
   color: var(--white);
-  background: var(--accent);
+  background: linear-gradient(180deg, #2b2b31, #17171b);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   transition: transform .2s, box-shadow .2s;
 }
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px var(--accent-glow);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  border-color: rgba(216, 76, 76, 0.26);
 }
 .btn-ghost {
   display: inline-flex;
@@ -162,8 +168,10 @@ img { max-width: 100%; display: block; }
   transform: translateX(-50%);
   width: 900px;
   height: 600px;
-  background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%);
-  filter: blur(80px);
+  background:
+    radial-gradient(ellipse at center, rgba(216, 76, 76, 0.08) 0%, transparent 58%),
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.04) 22%, transparent 72%);
+  filter: blur(88px);
   pointer-events: none;
 }
 .hero-content { position: relative; max-width: 680px; }
@@ -173,7 +181,7 @@ img { max-width: 100%; display: block; }
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface);
-  color: var(--accent);
+  color: #d6d6db;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: .08em;
@@ -189,7 +197,7 @@ h1 {
 }
 h1 em {
   font-style: normal;
-  background: linear-gradient(135deg, var(--accent), #f97316);
+  background: linear-gradient(135deg, #f3f4f6, #c9cbd2);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -225,7 +233,7 @@ h1 em {
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface);
-  color: var(--accent);
+  color: #c9cbd2;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .1em;
@@ -263,7 +271,7 @@ html[lang="zh-CN"] h1, html[lang="zh-CN"] h2 {
 }
 .feat-card:hover {
   background: var(--surface-hover);
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-4px);
 }
 .feat-icon {
@@ -301,7 +309,7 @@ html[lang="zh-CN"] h1, html[lang="zh-CN"] h2 {
   transition: border-color .3s, transform .3s, box-shadow .3s;
 }
 .shot-frame:hover {
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: rgba(255, 255, 255, 0.14);
   transform: translateY(-4px);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
 }
@@ -353,14 +361,14 @@ html[lang="zh-CN"] h1, html[lang="zh-CN"] h2 {
   transition: border-color .3s, transform .3s;
 }
 .dl-card:hover {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-4px);
 }
 .dl-os {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--accent);
+  color: #d6d6db;
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
