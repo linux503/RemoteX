@@ -182,11 +182,11 @@ function applyLang(lang) {
   });
   document.querySelectorAll("[data-i18n-src]").forEach((el) => {
     const key = el.getAttribute("data-i18n-src");
-    if (key) el.src = `./shots/${lang}/${key}.png?v=20260818`;
+    if (key) el.src = `./shots/${lang}/${key}.png?v=20260818i`;
   });
   setMeta('meta[property="og:image"]', "content", `${SITE}og-${lang}.png`);
   setMeta('meta[name="twitter:image"]', "content", `${SITE}og-${lang}.png`);
-  document.querySelectorAll(".lang button").forEach((btn) => {
+  document.querySelectorAll(".lang-toggle button").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-lang") === lang);
   });
   const copyBtn = document.querySelector(".copy-cmd");
@@ -203,6 +203,6 @@ function applyLang(lang) {
 
 const current = detectLang();
 applyLang(current);
-document.querySelectorAll(".lang button").forEach((btn) => {
+document.querySelectorAll(".lang-toggle button").forEach((btn) => {
   btn.addEventListener("click", () => applyLang(btn.getAttribute("data-lang")));
 });

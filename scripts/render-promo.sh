@@ -27,11 +27,11 @@ capture() {
 for lang in en zh; do
   out_dir="$OUT_EN"
   [[ "$lang" == "zh" ]] && out_dir="$OUT_ZH"
-  capture "$out_dir/home.png" 520 780 "$BASE_APP/?scene=home&lang=$lang&theme=light"
-  capture "$out_dir/connecting.png" 520 780 "$BASE_APP/?scene=connecting&lang=$lang&theme=light"
-  capture "$out_dir/incoming.png" 520 780 "$BASE_APP/?scene=incoming&lang=$lang&theme=light"
-  capture "$out_dir/settings.png" 520 780 "$BASE_APP/?scene=settings&lang=$lang&theme=light"
-  capture "$out_dir/session.png" 1080 720 "$BASE_APP/?scene=session&lang=$lang&theme=dark"
+  capture "$out_dir/home.png" 980 720 "$BASE_APP/?scene=home&lang=$lang&theme=light"
+  capture "$out_dir/connecting.png" 980 720 "$BASE_APP/?scene=connecting&lang=$lang&theme=light"
+  capture "$out_dir/incoming.png" 980 720 "$BASE_APP/?scene=incoming&lang=$lang&theme=light"
+  capture "$out_dir/settings.png" 980 720 "$BASE_APP/?scene=settings&tab=connection&lang=$lang&theme=light"
+  capture "$out_dir/session.png" 1120 760 "$BASE_APP/?scene=session&lang=$lang&theme=dark"
 done
 
 DOC_PID=""

@@ -8,7 +8,7 @@
     <meta name="keywords" content="RemoteX, remote desktop, 远程桌面, 极速远程桌面, Windows, macOS, P2P, device ID, 设备码, no account, 无需账号" />
     <meta name="author" content="RemoteX" />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#0a0a0c" />
+    <meta name="theme-color" content="#18181b" />
     <meta name="application-name" content="RemoteX" />
     <meta name="apple-mobile-web-app-title" content="RemoteX" />
     <link rel="canonical" id="canonical" href="https://linux503.github.io/RemoteX/" />
@@ -51,7 +51,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./site.css?v=20260818e" />
+    <link rel="stylesheet" href="./site.css?v=20260818i" />
   </head>
   <body>
     <!-- ====== NAV ====== -->
@@ -161,7 +161,21 @@
         </figure>
       </div>
       <figure class="shot-wide reveal">
-        <div class="shot-frame wide"><img class="promo-img" src="./shots/en/session.png" alt="" data-i18n-src="session" data-i18n-alt="altSession" /></div>
+        <div class="session-showcase">
+          <div class="session-window">
+            <div class="session-titlebar">
+              <span class="traffic" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="session-title" data-i18n="shotSession">Session</span>
+              <span class="session-pills">
+                <span class="pill live">P2P</span>
+                <span class="pill">36 ms</span>
+              </span>
+            </div>
+            <div class="shot-frame wide">
+              <img class="promo-img" src="./shots/en/session.png?v=20260818i" alt="" data-i18n-src="session" data-i18n-alt="altSession" />
+            </div>
+          </div>
+        </div>
         <figcaption><strong data-i18n="shotSession">Session</strong><span data-i18n="shotSessionDesc">Latency, download, upload, Direct P2P — visible instantly.</span></figcaption>
       </figure>
     </section>
@@ -207,7 +221,7 @@
       </div>
     </footer>
 
-    <script src="./i18n.js?v=20260818e"></script>
+    <script src="./i18n.js?v=20260818i"></script>
     <script>
       const io = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("in"); });
