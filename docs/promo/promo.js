@@ -67,13 +67,13 @@ const PROMO = {
 
 const OG = {
   en: {
-    eyebrow: "v0.2.6 · Fast Remote Desktop",
+    eyebrow: "v0.2.7 · Fast Remote Desktop",
     title: "Open. Copy. Connect.",
     lead: "No account. No setup. Just connect.",
     tags: ["Windows ↔ macOS", "P2P", "36 ms"],
   },
   zh: {
-    eyebrow: "v0.2.6 · 极速远程桌面",
+    eyebrow: "v0.2.7 · 极速远程桌面",
     title: "打开。复制。连接。",
     lead: "无需账号。无需配置。直接连接。",
     tags: ["Windows ↔ macOS", "P2P", "36 ms"],

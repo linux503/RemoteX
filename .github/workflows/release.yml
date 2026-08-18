@@ -42,11 +42,10 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
-            ## RemoteX v0.2.6
-            - Downloads use Line 1 (internet) automatically — no URL to edit
-            - Settings: Line 1 / Line 2 instead of a signaling address
-            - Sharper remote desktop (higher JPEG quality, 4:4:4, native-pixel blit)
-            - Default quality is Ultra clear
+            ## RemoteX v0.2.7
+            - Line 1 and Line 2 are both public internet hubs
+            - Line 2 is the Singapore server
+            - Both computers must pick the same line
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

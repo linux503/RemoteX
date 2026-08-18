@@ -5,8 +5,8 @@ use crate::Result;
 
 /// Internet hub baked into the app so downloads work without editing a URL.
 pub const PUBLIC_SIGNALING_URL: &str = "ws://23.226.134.88:7829/ws";
-/// Same-machine / LAN hub started by the desktop app.
-pub const LOCAL_SIGNALING_URL: &str = "ws://127.0.0.1:7829/ws";
+/// Second public hub (Singapore).
+pub const LINE2_SIGNALING_URL: &str = "ws://8.222.218.229:7829/ws";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
@@ -91,7 +91,7 @@ impl AppSettings {
 
 pub fn url_for_line(line: &str) -> &'static str {
     if line.trim() == "2" {
-        LOCAL_SIGNALING_URL
+        LINE2_SIGNALING_URL
     } else {
         PUBLIC_SIGNALING_URL
     }
