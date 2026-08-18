@@ -1454,6 +1454,30 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
   font-size: 14px;
 }
 .set-stack span { color: var(--text); }
+.line-switch {
+  display: flex;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(127, 110, 110, 0.12);
+  border: 1px solid var(--line);
+  width: 100%;
+}
+.line-switch button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 650;
+  width: auto;
+}
+.line-switch button.on {
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.22);
+}
 .hint {
   margin: 8px 0 0;
   font-size: 13px;
@@ -1581,12 +1605,13 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  padding: 8px 10px 8px 12px;
-  border-radius: 16px;
-  background: rgba(12, 13, 18, 0.78);
-  border: 1px solid rgba(255,255,255,0.08);
+  padding: 7px 9px 7px 11px;
+  border-radius: 14px;
+  background: rgba(8, 9, 12, 0.9);
+  border: 1px solid rgba(255,255,255,0.16);
   backdrop-filter: blur(22px);
   font-size: 13px;
+  color: #f4efe6;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
 }
 .session-peer {
@@ -1696,7 +1721,7 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
 }
 
 .desktop-canvas.remote {
-  cursor: none;
+  cursor: default;
   outline: none;
   display: flex;
   align-items: center;
@@ -1706,10 +1731,14 @@ footer { margin-top: 16px; text-align: right; color: var(--muted); font-size: 12
 
 .remote-canvas {
   display: block;
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
   background: #000;
   opacity: 0;
+  image-rendering: auto;
+  image-rendering: high-quality;
 }
 .remote-canvas.in { opacity: 1; }
 

@@ -27,6 +27,7 @@ export interface RecentDevice {
 
 export interface AppSettings {
   signaling_url: string;
+  signaling_line: string;
   language: string;
   theme: string;
   start_at_login: boolean;
@@ -88,6 +89,7 @@ export interface Snapshot {
 
 export const defaultSettings = (): AppSettings => ({
   signaling_url: "ws://127.0.0.1:7829/ws",
+  signaling_line: "1",
   language: "system",
   theme: "system",
   start_at_login: false,
@@ -100,7 +102,7 @@ export const defaultSettings = (): AppSettings => ({
   lock_after_session: false,
   p2p_preferred: true,
   hardware_encode: true,
-  quality: "balanced",
+  quality: "high",
   fps: 60,
 });
 
@@ -158,7 +160,7 @@ export function previewSnapshot(scene: string | null): Snapshot {
         down_kbps: 0,
         up_kbps: 0,
         path: "unknown",
-        quality: "balanced",
+        quality: "high",
       },
     };
   }
@@ -176,7 +178,7 @@ export function previewSnapshot(scene: string | null): Snapshot {
         down_kbps: 8420,
         up_kbps: 186,
         path: "p2p",
-        quality: "balanced",
+        quality: "high",
       },
     };
   }

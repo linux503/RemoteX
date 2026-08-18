@@ -103,6 +103,7 @@ pub struct AppState {
     frame_tx: watch::Sender<Option<RemoteFrame>>,
     frame_rx: watch::Receiver<Option<RemoteFrame>>,
     quality_tx: watch::Sender<String>,
+    signaling_url_tx: watch::Sender<String>,
 }
 
 impl AppState {
@@ -120,6 +121,7 @@ impl AppState {
         let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(32);
         let (frame_tx, frame_rx) = watch::channel(None::<RemoteFrame>);
         let (quality_tx, _quality_rx) = watch::channel(settings.quality.clone());
+        let (signaling_url_tx, signaling_url_rx) = watch::channel(settings.signaling_url.clone());
 
         let register = ClientMsg::register(&DeviceInfo {
             id: identity.device_id.clone(),
@@ -152,11 +154,18 @@ impl AppState {
             frame_tx: frame_tx.clone(),
             frame_rx: frame_rx.clone(),
             quality_tx: quality_tx.clone(),
+            signaling_url_tx: signaling_url_tx.clone(),
         }));
 
-        let client = SignalingClient::new(settings.signaling_url.clone());
         tokio::spawn(async move {
-            let _ = client.run(register, out_rx, prio_rx, in_tx).await;
+            let _ = SignalingClient::run_watching(
+                signaling_url_rx,
+                register,
+                out_rx,
+                prio_rx,
+                in_tx,
+            )
+            .await;
         });
 
         if let Ok(lan) = LanDiscovery::start(
@@ -268,9 +277,17 @@ impl AppState {
         self.passwords.save(&self.dir)
     }
 
-    pub fn update_settings(&mut self, settings: AppSettings) -> Result<()> {
+    pub fn update_settings(&mut self, mut settings: AppSettings) -> Result<()> {
+        settings.normalize();
+        let url_changed = settings.signaling_url != self.settings.signaling_url;
         self.settings = settings;
         let _ = self.quality_tx.send(self.settings.quality.clone());
+        if url_changed {
+            self.ready = false;
+            let _ = self
+                .signaling_url_tx
+                .send(self.settings.signaling_url.clone());
+        }
         self.settings.save(&self.dir)?;
         Ok(())
     }
@@ -652,8 +669,8 @@ fn os_label(os: &OsKind) -> String {
 fn quality_target_kbps(quality: &str) -> u32 {
     match quality {
         "smooth" => 2800,
-        "high" => 14500,
+        "high" => 18000,
         "original" => 24000,
-        _ => 8200,
+        _ => 10000,
     }
 }

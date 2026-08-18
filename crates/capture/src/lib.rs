@@ -95,9 +95,11 @@ fn encode_scaled(mut image: RgbaImage, max_width: u32, quality: u8) -> Result<Fr
 
     if max_width > 0 && width > max_width {
         let scaled_h = ((height as f32) * (max_width as f32) / (width as f32)).round() as u32;
-        let filter = if quality >= 80 {
+        let filter = if quality >= 90 {
+            FilterType::Lanczos3
+        } else if quality >= 80 {
             FilterType::CatmullRom
-        } else if quality <= 52 {
+        } else if quality <= 62 {
             FilterType::Nearest
         } else {
             FilterType::Triangle
@@ -107,7 +109,7 @@ fn encode_scaled(mut image: RgbaImage, max_width: u32, quality: u8) -> Result<Fr
         height = image.height();
     }
 
-    let bytes = encode_jpeg(&image, quality.clamp(40, 92))?;
+    let bytes = encode_jpeg(&image, quality.clamp(40, 95))?;
     Ok(FrameJpeg {
         width,
         height,
@@ -140,15 +142,18 @@ pub fn quality_max_width(quality: &str) -> u32 {
 /// (max_width, jpeg_quality, interval_ms)
 pub fn quality_params(quality: &str) -> (u32, u8, u64) {
     match quality {
-        "smooth" => (1280, 52, 45),
-        "high" | "original" => (1920, 88, 70),
-        _ => (1600, 74, 55),
+        "smooth" => (1280, 68, 40),
+        "high" | "original" => (2560, 94, 66),
+        _ => (1920, 90, 55),
     }
 }
 
 fn encode_jpeg(image: &RgbaImage, quality: u8) -> Result<Vec<u8>, CaptureError> {
-    let mut out = Vec::with_capacity((image.width() * image.height()) as usize);
-    let encoder = jpeg_encoder::Encoder::new(&mut out, quality);
+    let mut out = Vec::with_capacity((image.width() * image.height()) as usize / 4);
+    let mut encoder = jpeg_encoder::Encoder::new(&mut out, quality);
+    if quality >= 80 {
+        encoder.set_sampling_factor(jpeg_encoder::SamplingFactor::F_1_1);
+    }
     encoder
         .encode(
             image.as_raw(),

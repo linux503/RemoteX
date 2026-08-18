@@ -3,9 +3,16 @@ use std::path::{Path, PathBuf};
 
 use crate::Result;
 
+/// Internet hub baked into the app so downloads work without editing a URL.
+pub const PUBLIC_SIGNALING_URL: &str = "ws://23.226.134.88:7829/ws";
+/// Same-machine / LAN hub started by the desktop app.
+pub const LOCAL_SIGNALING_URL: &str = "ws://127.0.0.1:7829/ws";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub signaling_url: String,
+    #[serde(default = "default_signaling_line")]
+    pub signaling_line: String,
     pub language: String,
     pub theme: String,
     pub start_at_login: bool,
@@ -24,8 +31,9 @@ pub struct AppSettings {
 
 impl Default for AppSettings {
     fn default() -> Self {
-        Self {
+        let mut settings = Self {
             signaling_url: default_signaling_url(),
+            signaling_line: default_signaling_line(),
             language: "system".into(),
             theme: "system".into(),
             start_at_login: false,
@@ -38,9 +46,11 @@ impl Default for AppSettings {
             lock_after_session: false,
             p2p_preferred: true,
             hardware_encode: true,
-            quality: "balanced".into(),
+            quality: "high".into(),
             fps: 60,
-        }
+        };
+        settings.normalize();
+        settings
     }
 }
 
@@ -54,10 +64,8 @@ impl AppSettings {
         }
         let raw = std::fs::read_to_string(path)?;
         let mut settings: Self = serde_json::from_str(&raw)?;
-        if crate::lan::is_fake_vpn_signaling(&settings.signaling_url) {
-            settings.signaling_url = default_signaling_url();
-            let _ = settings.save(dir);
-        }
+        settings.normalize();
+        let _ = settings.save(dir);
         Ok(settings)
     }
 
@@ -66,11 +74,38 @@ impl AppSettings {
         std::fs::write(settings_path(dir), serde_json::to_string_pretty(self)?)?;
         Ok(())
     }
+
+    pub fn normalize(&mut self) {
+        if let Ok(url) = std::env::var("REMOTEX_SIGNALING") {
+            if !url.trim().is_empty() {
+                self.signaling_url = url;
+                return;
+            }
+        }
+        if self.signaling_line.trim() != "2" {
+            self.signaling_line = "1".into();
+        }
+        self.signaling_url = url_for_line(&self.signaling_line).to_string();
+    }
+}
+
+pub fn url_for_line(line: &str) -> &'static str {
+    if line.trim() == "2" {
+        LOCAL_SIGNALING_URL
+    } else {
+        PUBLIC_SIGNALING_URL
+    }
 }
 
 pub fn default_signaling_url() -> String {
     std::env::var("REMOTEX_SIGNALING")
-        .unwrap_or_else(|_| "ws://127.0.0.1:7829/ws".into())
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| PUBLIC_SIGNALING_URL.to_string())
+}
+
+fn default_signaling_line() -> String {
+    "1".into()
 }
 
 fn settings_path(dir: &Path) -> PathBuf {

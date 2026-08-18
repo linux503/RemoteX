@@ -85,47 +85,51 @@ function modifierBits(event: { shiftKey: boolean; ctrlKey: boolean; altKey: bool
   return bits;
 }
 
-function RemoteDesktop({ locale, isHost, speedFirst }: { locale: Locale; isHost: boolean; speedFirst?: boolean }) {
+function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) {
   const [waiting, setWaiting] = useState(true);
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const cursorRef = useRef<HTMLDivElement>(null);
   const lastData = useRef("");
   const pendingMove = useRef<{ x: number; y: number } | null>(null);
   const sendingMove = useRef(false);
-  const qualitySmooth = useRef(false);
-  qualitySmooth.current = !!speedFirst;
 
   const drawFrame = async (data: string) => {
     if (!data || data === lastData.current) return;
     lastData.current = data;
     const canvas = canvasRef.current;
-    const stage = stageRef.current;
-    if (!canvas || !stage) return;
+    if (!canvas) return;
     try {
       const raw = atob(data);
       const bytes = new Uint8Array(raw.length);
       for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
       const blob = new Blob([bytes], { type: "image/jpeg" });
-      const bmp = await createImageBitmap(blob);
-      const cssW = stage.clientWidth;
-      const cssH = stage.clientHeight;
-      const scale = Math.min(cssW / bmp.width, cssH / bmp.height);
-      const w = Math.max(1, Math.round(bmp.width * scale));
-      const h = Math.max(1, Math.round(bmp.height * scale));
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
-        canvas.style.width = `${w}px`;
-        canvas.style.height = `${h}px`;
+      let bmp: ImageBitmap;
+      try {
+        bmp = await createImageBitmap(blob, {
+          colorSpaceConversion: "none",
+          premultiplyAlpha: "none",
+        });
+      } catch {
+        bmp = await createImageBitmap(blob);
+      }
+      if (canvas.width !== bmp.width || canvas.height !== bmp.height) {
+        canvas.width = bmp.width;
+        canvas.height = bmp.height;
+      }
+      const stage = stageRef.current;
+      if (stage) {
+        const scale = Math.min(stage.clientWidth / bmp.width, stage.clientHeight / bmp.height);
+        canvas.style.width = `${Math.max(1, Math.round(bmp.width * scale))}px`;
+        canvas.style.height = `${Math.max(1, Math.round(bmp.height * scale))}px`;
       }
       const ctx = canvas.getContext("2d", { alpha: false });
-      if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.imageSmoothingEnabled = !qualitySmooth.current;
-      ctx.imageSmoothingQuality = qualitySmooth.current ? "low" : "high";
-      ctx.drawImage(bmp, 0, 0, w, h);
+      if (!ctx) {
+        bmp.close();
+        return;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(bmp, 0, 0);
       bmp.close();
       setWaiting(false);
     } catch {
@@ -172,15 +176,6 @@ function RemoteDesktop({ locale, isHost, speedFirst }: { locale: Locale; isHost:
     });
   };
 
-  const moveCursor = (clientX: number, clientY: number) => {
-    const stage = stageRef.current;
-    const cursor = cursorRef.current;
-    if (!stage || !cursor) return;
-    const rect = stage.getBoundingClientRect();
-    cursor.style.transform = `translate(${clientX - rect.left}px, ${clientY - rect.top}px)`;
-    cursor.style.opacity = "1";
-  };
-
   const showPreview = previewScene === "session";
 
   return (
@@ -191,11 +186,7 @@ function RemoteDesktop({ locale, isHost, speedFirst }: { locale: Locale; isHost:
         tabIndex={0}
         onContextMenu={(e) => e.preventDefault()}
         onMouseEnter={() => canvasRef.current?.focus()}
-        onMouseLeave={() => {
-          if (cursorRef.current) cursorRef.current.style.opacity = "0";
-        }}
         onMouseMove={(e) => {
-          moveCursor(e.clientX, e.clientY);
           const p = norm(e.clientX, e.clientY);
           if (!p) return;
           pendingMove.current = p;
@@ -228,7 +219,6 @@ function RemoteDesktop({ locale, isHost, speedFirst }: { locale: Locale; isHost:
         }}
       >
         <canvas ref={canvasRef} className={`remote-canvas${waiting ? "" : " in"}`} />
-        <div ref={cursorRef} className="remote-cursor" aria-hidden />
         {showPreview && waiting && <PreviewRemoteScreen locale={locale} />}
         {waiting && !showPreview && (
           <div className="desktop-wait">
@@ -474,7 +464,7 @@ export default function App() {
             down_kbps: 0,
             up_kbps: 0,
             path: "unknown",
-            quality: "balanced",
+            quality: "high",
           },
         });
         window.setTimeout(() => {
@@ -538,7 +528,7 @@ export default function App() {
           onMouseMove={bumpChrome}
           onPointerDown={bumpChrome}
         >
-          <RemoteDesktop locale={locale} isHost={snap.is_host} speedFirst={sessionQuality === "smooth"} />
+          <RemoteDesktop locale={locale} isHost={snap.is_host} />
           <div className={`session-chrome${chromeVisible ? " show" : ""}`}>
             <div className="session-toolbar">
               <div className="session-peer">
@@ -771,7 +761,7 @@ export default function App() {
             </section>
           )}
 
-          <footer>RemoteX v0.2.5</footer>
+          <footer>RemoteX v0.2.6</footer>
         </main>
       )}
 
@@ -1094,13 +1084,26 @@ function Settings({
               <p className="pane-title">{tr("tabConnection")}</p>
               <Toggle label={tr("preferP2p")} checked={snap.settings.p2p_preferred} onChange={(v) => onSettings({ p2p_preferred: v })} />
               <Toggle label={tr("hardwareEncode")} checked={snap.settings.hardware_encode} onChange={(v) => onSettings({ hardware_encode: v })} />
-              <label className="set-stack">
+              <div className="set-stack">
                 <span>{tr("signalingServer")}</span>
-                <input
-                  value={snap.settings.signaling_url}
-                  onChange={(e) => onSettings({ signaling_url: e.target.value })}
-                />
-              </label>
+                <div className="line-switch" role="radiogroup" aria-label={tr("signalingServer")}>
+                  {([
+                    ["1", "line1"],
+                    ["2", "line2"],
+                  ] as const).map(([value, key]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={(snap.settings.signaling_line === "2" ? "2" : "1") === value}
+                      className={(snap.settings.signaling_line === "2" ? "2" : "1") === value ? "on" : ""}
+                      onClick={() => onSettings({ signaling_line: value })}
+                    >
+                      {tr(key)}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <p className="hint">{tr("signalingHint")}</p>
               {snap.lan_url && (
                 <>
@@ -1181,7 +1184,7 @@ function Settings({
               <h2>RemoteX</h2>
               <p>{tr("aboutTagline")}</p>
               <p className="muted">{tr("aboutNote")}</p>
-              <p className="muted">v0.2.5 · macOS / Windows</p>
+              <p className="muted">v0.2.6 · macOS / Windows</p>
               <a className="github-link" href="https://github.com/linux503/RemoteX" target="_blank" rel="noreferrer">
                 GitHub
               </a>
