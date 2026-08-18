@@ -11,9 +11,10 @@ const en = {
   hideToolbar: "Hide",
   showToolbar: "Show",
   customPassword: "Custom password",
+  customPasswordHint: "Save to replace the temporary password above.",
   savePassword: "Save",
-  passwordHint: "4–16 letters or numbers",
-  passwordInvalid: "Password must be 4–16 letters or numbers",
+  passwordHint: "4-16 uppercase letters or numbers",
+  passwordInvalid: "Password must be 4-16 uppercase letters or numbers",
   ready: "Ready",
   connectingNetwork: "Connecting to network…",
   tempPassword: "Temporary Password",
@@ -138,7 +139,8 @@ const en = {
   preferP2pHint: "Try a direct peer connection before relaying through the hub",
   hardwareEncodeHint: "Use GPU encoding when available for smoother streaming",
   unattendedHint: "Allow trusted devices to connect with a permanent password",
-  permanentPasswordHint: "Used when Unattended Access is enabled",
+  permanentPasswordHint: "Used when Unattended Access is enabled. Uppercase letters and numbers.",
+  permanentPasswordSet: "Saved on this device",
   askBeforeConnectingHint: "Show a confirmation dialog before accepting a session",
   allowClipboardHint: "Automatically sync copied text between local and remote during a session",
   allowFileTransferHint: "Send files to the other device (saved to Downloads/RemoteX)",
@@ -187,7 +189,7 @@ const en = {
   permChecking: "Checking…",
   permRequestScreen: "Request",
   permRefresh: "Refresh",
-  permReady: "All permissions granted — this Mac can be controlled remotely.",
+  permReady: "All permissions granted. This Mac can be controlled remotely.",
   permNeeded: "Grant macOS permissions so others can control this Mac.",
   permGoSettings: "Set up permissions",
   permBannerTitle: "Enable macOS permissions",
@@ -221,9 +223,10 @@ const zh: typeof en = {
   hideToolbar: "隐藏",
   showToolbar: "显示",
   customPassword: "自定义密码",
+  customPasswordHint: "保存后会替换上方的临时密码。",
   savePassword: "保存",
-  passwordHint: "4–16 位字母或数字",
-  passwordInvalid: "密码需为 4–16 位字母或数字",
+  passwordHint: "4-16 位大写字母或数字",
+  passwordInvalid: "密码需为 4-16 位大写字母或数字",
   ready: "就绪",
   connectingNetwork: "正在连接网络…",
   tempPassword: "临时密码",
@@ -348,7 +351,8 @@ const zh: typeof en = {
   preferP2pHint: "优先尝试点对点直连，再走路由中继",
   hardwareEncodeHint: "可用时使用 GPU 编码，画面更流畅",
   unattendedHint: "允许受信任设备用固定密码连接",
-  permanentPasswordHint: "开启无人值守后使用",
+  permanentPasswordHint: "开启无人值守后使用。大写字母或数字。",
+  permanentPasswordSet: "已保存在本机",
   askBeforeConnectingHint: "接受远程控制前先弹出确认",
   allowClipboardHint: "会话中自动同步双方复制的文字",
   allowFileTransferHint: "向对端发送文件（保存到「下载/RemoteX」）",
@@ -449,7 +453,7 @@ export function translateError(locale: Locale, message: string): string {
   if (message.toLowerCase().includes("disconnected") || message.includes("已断开")) {
     return t(locale, "peerDisconnected");
   }
-  if (message.includes("4–16") || message.includes("letters or numbers")) {
+  if (message.includes("4-16") || message.includes("4–16") || message.includes("letters or numbers")) {
     return t(locale, "passwordInvalid");
   }
   return message;

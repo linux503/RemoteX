@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RemoteX — Fast Remote Desktop | 极速远程桌面</title>
+    <title>RemoteX | Fast Remote Desktop | 极速远程桌面</title>
     <meta name="description" content="No account. No setup. Just connect. RemoteX is a fast P2P remote desktop for Windows and macOS. 无需注册，输入设备码即可跨平台远程连接。" />
     <meta name="keywords" content="RemoteX, remote desktop, 远程桌面, 极速远程桌面, Windows, macOS, P2P, device ID, 设备码, no account, 无需账号" />
     <meta name="author" content="RemoteX" />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#18181b" />
+    <meta name="theme-color" content="#0c0c0e" />
     <meta name="application-name" content="RemoteX" />
     <meta name="apple-mobile-web-app-title" content="RemoteX" />
     <link rel="canonical" id="canonical" href="https://linux503.github.io/RemoteX/" />
@@ -20,7 +20,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="RemoteX" />
     <meta property="og:url" content="https://linux503.github.io/RemoteX/" />
-    <meta property="og:title" content="RemoteX — Fast Remote Desktop | 极速远程桌面" />
+    <meta property="og:title" content="RemoteX | Fast Remote Desktop | 极速远程桌面" />
     <meta property="og:description" content="No account. No setup. Just connect. 无需注册，输入设备码即可远程连接。" />
     <meta property="og:image" content="https://linux503.github.io/RemoteX/og-en.png" />
     <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
     <meta property="og:locale" content="en_US" />
     <meta property="og:locale:alternate" content="zh_CN" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="RemoteX — Fast Remote Desktop | 极速远程桌面" />
+    <meta name="twitter:title" content="RemoteX | Fast Remote Desktop | 极速远程桌面" />
     <meta name="twitter:description" content="No account. No setup. Just connect. 无需注册，输入设备码即可远程连接。" />
     <meta name="twitter:image" content="https://linux503.github.io/RemoteX/og-en.png" />
     <script type="application/ld+json" id="jsonld">
@@ -45,13 +45,10 @@
         "inLanguage": ["en", "zh-CN"],
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "downloadUrl": "https://github.com/linux503/RemoteX/releases/latest",
-        "softwareVersion": "2.0.3"
+        "softwareVersion": "2.0.4"
       }
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./site.css?v=20260818k" />
+    <link rel="stylesheet" href="./site.css?v=20260819b" />
   </head>
   <body>
     <!-- ====== NAV ====== -->
@@ -72,21 +69,19 @@
             <button type="button" data-lang="en">EN</button>
             <button type="button" data-lang="zh">中文</button>
           </div>
-          <a class="nav-cta" href="#download" data-i18n="getApp">Get the app</a>
+          <a class="nav-cta" href="#download" data-i18n="downloadRemoteX">Download</a>
         </div>
       </div>
     </header>
 
     <!-- ====== HERO ====== -->
     <section class="hero">
-      <div class="hero-glow" aria-hidden="true"></div>
-      <div class="hero-content reveal">
-          <p class="badge" data-i18n="eyebrow">v2.0.3 · Fast Remote Desktop</p>
-        <h1 data-i18n-html="heroTitle">Remote desktop,<br /><em>redefined.</em></h1>
-        <p class="hero-lead" data-i18n="heroLead">No account. No setup. Copy a device code, enter the password, connect. Windows and macOS.</p>
+      <div class="hero-copy reveal">
+        <h1 data-i18n-html="heroTitle">A device ID is enough.</h1>
+        <p class="hero-lead" data-i18n="heroLead">No account. Copy a device ID, enter the password, connect. Windows and macOS.</p>
         <div class="hero-actions">
-          <a class="btn-primary" href="#download" data-i18n="downloadRemoteX">Download RemoteX</a>
-          <a class="btn-ghost" href="#features" data-i18n="seeProduct">Learn more</a>
+          <a class="btn-primary" href="#download" data-i18n="downloadRemoteX">Download</a>
+          <a class="btn-ghost" href="#screenshots" data-i18n="seeProduct">See the product</a>
         </div>
       </div>
       <div class="hero-device reveal delay">
@@ -99,39 +94,38 @@
     <!-- ====== FEATURES ====== -->
     <section id="features" class="features">
       <div class="section-intro reveal">
-        <p class="section-label" data-i18n="navFeatures">Features</p>
-        <h2 data-i18n="featuresTitle">Everything you need. Nothing you don't.</h2>
+        <h2 data-i18n="featuresTitle">What you need. Nothing else.</h2>
       </div>
       <div class="features-grid">
-        <article class="feat-card reveal">
-          <span class="feat-icon">⚡</span>
-          <h3 data-i18n="f1t">No Account</h3>
-          <p data-i18n="f1d">No login page. Device ID and password are everything.</p>
+        <article class="feat-card featured reveal">
+          <svg class="feat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.25" stroke="currentColor" stroke-width="1.6"/><path d="M8 12.2l2.4 2.3L16.2 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h3 data-i18n="f1t">No account</h3>
+          <p data-i18n="f1d">No login page. A device ID and password are enough.</p>
         </article>
         <article class="feat-card reveal">
-          <span class="feat-icon">🖥</span>
-          <h3 data-i18n="f2t">Cross-platform</h3>
-          <p data-i18n="f2d">Windows and macOS control each other with the same UI.</p>
+          <svg class="feat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5.5" width="7.5" height="13" rx="1.4" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="7.5" width="7.5" height="9" rx="1.4" stroke="currentColor" stroke-width="1.6"/></svg>
+          <h3 data-i18n="f2t">Windows and Mac</h3>
+          <p data-i18n="f2d">Either side can control the other. Same app.</p>
+        </article>
+        <article class="feat-card tint reveal">
+          <svg class="feat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 16l4.5-5 3.5 4 3-3.5L20 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="8" r="1.3" fill="currentColor"/></svg>
+          <h3 data-i18n="f3t">Live path</h3>
+          <p data-i18n="f3d">Latency and P2P or relay stay visible.</p>
+        </article>
+        <article class="feat-card tint reveal">
+          <svg class="feat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.8l7 3v5.4c0 4.2-2.9 7.3-7 8.8-4.1-1.5-7-4.6-7-8.8V6.8l7-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <h3 data-i18n="f4t">macOS permissions</h3>
+          <p data-i18n="f4d">Opens the right System Settings panel, step by step.</p>
         </article>
         <article class="feat-card reveal">
-          <span class="feat-icon">📊</span>
-          <h3 data-i18n="f3t">Live stats</h3>
-          <p data-i18n="f3d">See latency and speed. P2P or Relay is obvious.</p>
+          <svg class="feat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4.5" width="14" height="15" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h8M8 12.5h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <h3 data-i18n="f5t">Clipboard</h3>
+          <p data-i18n="f5d">Copy on one machine, paste on the other.</p>
         </article>
         <article class="feat-card reveal">
-          <span class="feat-icon">🛡</span>
-          <h3 data-i18n="f4t">Smart macOS guide</h3>
-          <p data-i18n="f4d">Permissions open in the right place and the app guides you step by step.</p>
-        </article>
-        <article class="feat-card reveal">
-          <span class="feat-icon">📋</span>
-          <h3 data-i18n="f5t">Clipboard sync</h3>
-          <p data-i18n="f5d">Copy on one machine, paste on the other — automatically during a session.</p>
-        </article>
-        <article class="feat-card reveal">
-          <span class="feat-icon">📁</span>
-          <h3 data-i18n="f6t">File transfer</h3>
-          <p data-i18n="f6d">Send files up to 256 MB between devices. Saved to Downloads/RemoteX.</p>
+          <svg class="feat-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 16.5V8.8A1.8 1.8 0 0 1 9.8 7h4.4A1.8 1.8 0 0 1 16 8.8v7.7" stroke="currentColor" stroke-width="1.6"/><path d="M6 16.5h12v1.7A1.8 1.8 0 0 1 16.2 20H7.8A1.8 1.8 0 0 1 6 18.2v-1.7z" stroke="currentColor" stroke-width="1.6"/></svg>
+          <h3 data-i18n="f6t">Files</h3>
+          <p data-i18n="f6d">Send files up to 256 MB. Saved to Downloads/RemoteX.</p>
         </article>
       </div>
     </section>
@@ -139,17 +133,16 @@
     <!-- ====== SCREENSHOTS ====== -->
     <section id="screenshots" class="screenshots">
       <div class="section-intro reveal">
-        <p class="section-label" data-i18n="navProduct">Product</p>
-        <h2 data-i18n="shotsTitle">Clean screens. Easy to use.</h2>
+        <h2 data-i18n="shotsTitle">The app, as it actually looks.</h2>
       </div>
       <div class="shots-scroll">
-        <figure class="shot-card reveal">
+        <figure class="shot-card featured reveal">
           <div class="shot-frame"><img class="promo-img" src="./shots/en/home.png" alt="" data-i18n-src="home" data-i18n-alt="altHome" /></div>
           <figcaption><strong data-i18n="shotHome">Home</strong><span data-i18n="shotHomeDesc">Device ID + temporary password. Ready in 3 seconds.</span></figcaption>
         </figure>
         <figure class="shot-card reveal">
           <div class="shot-frame"><img class="promo-img" src="./shots/en/connecting.png" alt="" data-i18n-src="connecting" data-i18n-alt="altConnecting" /></div>
-          <figcaption><strong data-i18n="shotHandshake">Handshake</strong><span data-i18n="shotHandshakeDesc">Find device, secure handshake, P2P — each step lights up.</span></figcaption>
+          <figcaption><strong data-i18n="shotHandshake">Handshake</strong><span data-i18n="shotHandshakeDesc">Find the device, confirm identity, then start the session.</span></figcaption>
         </figure>
         <figure class="shot-card reveal">
           <div class="shot-frame"><img class="promo-img" src="./shots/en/incoming.png" alt="" data-i18n-src="incoming" data-i18n-alt="altIncoming" /></div>
@@ -172,30 +165,29 @@
               </span>
             </div>
             <div class="shot-frame wide">
-              <img class="promo-img" src="./shots/en/session.png?v=20260818k" alt="" data-i18n-src="session" data-i18n-alt="altSession" />
+              <img class="promo-img" src="./shots/en/session.png?v=20260819b" alt="" data-i18n-src="session" data-i18n-alt="altSession" />
             </div>
           </div>
         </div>
-        <figcaption><strong data-i18n="shotSession">Session</strong><span data-i18n="shotSessionDesc">Latency, download, upload, Direct P2P — visible instantly.</span></figcaption>
+        <figcaption><strong data-i18n="shotSession">Session</strong><span data-i18n="shotSessionDesc">Latency, download, upload, Direct P2P - visible instantly.</span></figcaption>
       </figure>
     </section>
 
     <!-- ====== DOWNLOAD ====== -->
     <section id="download" class="download">
       <div class="section-intro reveal">
-        <p class="section-label" data-i18n="navDownload">Download</p>
-        <h2 data-i18n="dlTitle">Pick your platform.</h2>
+        <h2 data-i18n="dlTitle">Install on your computer.</h2>
       </div>
       <div class="dl-cards">
-        <article class="dl-card reveal">
+        <article class="dl-card featured reveal">
           <div class="dl-os">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M16.67 12.46c-.03-3 2.45-4.43 2.56-4.5-1.4-2.03-3.58-2.3-4.34-2.33-1.85-.19-3.61 1.09-4.55 1.09-.94 0-2.39-1.06-3.93-1.03-2.02.03-3.89 1.18-4.93 2.98-2.1 3.64-.54 9.02 1.51 11.98 1 1.45 2.2 3.08 3.77 3.02 1.51-.06 2.08-.98 3.9-.98 1.82 0 2.33.98 3.94.95 1.63-.03 2.66-1.48 3.66-2.94 1.15-1.68 1.43-3.3 1.46-3.39-.04-.02-2.75-1.06-2.78-4.15zM14.34 4.08c.84-1.02 1.41-2.43 1.25-3.84-1.21.05-2.67.81-3.54 1.83-.78.9-1.46 2.34-1.28 3.72 1.35.1 2.73-.68 3.57-1.71z"/></svg>
             <span>macOS</span>
           </div>
           <h3 data-i18n="dlMacTitle">Download for Mac</h3>
           <p data-i18n="dlMacDesc">Universal installer for Apple Silicon and Intel. Follow the smart permission guide inside the app.</p>
-          <a class="btn-primary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_2.0.3_universal.dmg" data-i18n="dlMacBtn">Download for Mac</a>
-          <span class="dl-ver" data-i18n="dlVersion">Version v2.0.3</span>
+          <a class="btn-primary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_2.0.4_universal.dmg" data-i18n="dlMacBtn">Download for Mac</a>
+          <span class="dl-ver" data-i18n="dlVersion">Version v2.0.4</span>
         </article>
         <article class="dl-card reveal">
           <div class="dl-os">
@@ -205,10 +197,10 @@
           <h3 data-i18n="dlWinTitle">Download for Windows</h3>
           <p data-i18n="dlWinDesc">Windows 10 / 11. No admin password needed.</p>
           <div class="dl-btns">
-            <a class="btn-primary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_2.0.3_x64-setup.exe" data-i18n="dlWinBtn">Windows Installer</a>
+            <a class="btn-primary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_2.0.4_x64-setup.exe" data-i18n="dlWinBtn">Windows Installer</a>
             <a class="btn-ghost" href="https://github.com/linux503/RemoteX/releases/latest" data-i18n="dlAll">All releases</a>
           </div>
-            <span class="dl-ver" data-i18n="dlVersion">Version v2.0.3</span>
+            <span class="dl-ver" data-i18n="dlVersion">Version v2.0.4</span>
         </article>
       </div>
     </section>
@@ -216,12 +208,12 @@
     <!-- ====== FOOTER ====== -->
     <footer>
       <div class="footer-inner">
-        <span data-i18n="footerTag">RemoteX v2.0.3 · Fast Remote Desktop</span>
+        <span data-i18n="footerTag">RemoteX for Windows and macOS</span>
         <a href="https://github.com/linux503/RemoteX">GitHub</a>
       </div>
     </footer>
 
-    <script src="./i18n.js?v=20260818k"></script>
+    <script src="./i18n.js?v=20260819b"></script>
     <script>
       const io = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("in"); });

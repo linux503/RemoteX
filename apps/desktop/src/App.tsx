@@ -4,6 +4,14 @@ import { resolveLocale, t, translateError, type Locale, type MessageKey } from "
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;
 
+function normalizePasswordInput(value: string) {
+  return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 16);
+}
+
+function isValidPassword(value: string) {
+  return /^[A-Z0-9]{4,16}$/.test(value);
+}
+
 function latencyTone(ms: number) {
   if (!ms) return "";
   if (ms < 45) return "good";
@@ -575,6 +583,29 @@ export default function App() {
     window.setTimeout(() => setCopied(""), 1200);
   };
 
+  const saveHomePassword = () => {
+    const value = normalizePasswordInput(homePassword);
+    if (!isValidPassword(value)) {
+      setError(tr("passwordInvalid"));
+      return;
+    }
+    void run(async () => {
+      if (isTauri()) {
+        const next = await invoke<Snapshot>("set_temp_password", { password: value });
+        setSnap(next);
+      } else {
+        setSnap({
+          ...snap,
+          formatted_password: value.split("").join(" "),
+          temp_password: value,
+        });
+      }
+      setHomePassword("");
+      setToast(tr("saved"));
+      window.setTimeout(() => setToast(""), 1400);
+    });
+  };
+
   const run = async (fn: () => Promise<unknown>) => {
     try {
       setError("");
@@ -603,7 +634,7 @@ export default function App() {
       if (isTauri()) {
         await invoke("connect", {
           targetId: connectId,
-          password: connectPassword,
+          password: normalizePasswordInput(connectPassword),
         });
       } else {
         setSnap({
@@ -697,7 +728,7 @@ export default function App() {
                         : tr("relay")}
                   </span>
                   <span className={`pill ${latencyTone(snap.session.rtt_ms)}`}>
-                    {snap.session.rtt_ms || "—"} ms
+                    {snap.session.rtt_ms || "-"} ms
                   </span>
                 </div>
                 <div className="quality-switch" role="radiogroup" aria-label={tr("displayQuality")}>
@@ -783,6 +814,7 @@ export default function App() {
     <div className="app">
       <Titlebar
         onSettings={() => setView(view === "settings" ? "home" : "settings")}
+        compact={view === "settings"}
         settingsLabel={tr("settings")}
         needsPermissions={!!(perms && perms.platform === "macos" && !perms.all_granted)}
       />
@@ -796,12 +828,23 @@ export default function App() {
           onRefreshPerms={() => void fetchPermissions().then(setPerms)}
           onBack={() => setView("home")}
           onSettings={updateSettings}
-          onPermanentPassword={(password) => {
-            if (!isTauri()) return;
-            void run(async () => {
-              await invoke("set_permanent_password", { password });
-            });
-          }}
+          onPermanentPassword={(password) =>
+            run(async () => {
+              const value = normalizePasswordInput(password);
+              if (!isValidPassword(value)) {
+                setError(tr("passwordInvalid"));
+                return;
+              }
+              if (isTauri()) {
+                await invoke("set_permanent_password", { password: value });
+                setSnap(await invoke<Snapshot>("snapshot"));
+              } else {
+                setSnap((prev) => ({ ...prev, has_permanent_password: true }));
+              }
+              setToast(tr("saved"));
+              window.setTimeout(() => setToast(""), 1400);
+            })
+          }
         />
       ) : (
         <main className="home">
@@ -910,49 +953,28 @@ export default function App() {
                 </button>
                 <label className="custom-password inline">
                   <span>{tr("customPassword")}</span>
+                  <p className="custom-password-hint">{tr("customPasswordHint")}</p>
                   <div className="custom-password-row">
                     <input
+                      className="pw-input"
                       value={homePassword}
-                      onChange={(e) => setHomePassword(e.target.value)}
+                      onChange={(e) => setHomePassword(normalizePasswordInput(e.target.value))}
                       placeholder={tr("passwordHint")}
                       maxLength={16}
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") e.currentTarget.blur();
-                      }}
-                      onBlur={() => {
-                        const value = homePassword.trim();
-                        if (!value) return;
-                        if (!/^[A-Za-z0-9]{4,16}$/.test(value)) {
-                          setError(tr("passwordInvalid"));
-                          return;
-                        }
-                        setError("");
-                        if (isTauri()) {
-                          void run(async () => {
-                            await invoke("set_permanent_password", { password: value });
-                          });
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          saveHomePassword();
                         }
                       }}
                     />
                     <button
                       type="button"
                       className="ghost save-password"
-                      onClick={() => {
-                        const value = homePassword.trim();
-                        if (!value) return;
-                        if (!/^[A-Za-z0-9]{4,16}$/.test(value)) {
-                          setError(tr("passwordInvalid"));
-                          return;
-                        }
-                        setError("");
-                        if (isTauri()) {
-                          void run(async () => {
-                            await invoke("set_permanent_password", { password: value });
-                            setToast(tr("saved"));
-                            window.setTimeout(() => setToast(""), 1400);
-                          });
-                        }
-                      }}
+                      onClick={saveHomePassword}
                     >
                       {tr("savePassword")}
                     </button>
@@ -993,7 +1015,7 @@ export default function App() {
                   </div>
                   <div className="network-stat">
                     <span>{tr("signalLatency")}</span>
-                    <strong>{snap.rtt_ms > 0 ? `${snap.rtt_ms} ms` : "—"}</strong>
+                    <strong>{snap.rtt_ms > 0 ? `${snap.rtt_ms} ms` : "-"}</strong>
                   </div>
                 </div>
               </section>
@@ -1125,6 +1147,63 @@ export default function App() {
   );
 }
 
+function NavGlyph({ name }: { name: string }) {
+  const common = {
+    viewBox: "0 0 20 20",
+    width: 16,
+    height: 16,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.5,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  if (name === "connection") {
+    return (
+      <svg {...common}>
+        <path d="M4.5 10h4M11.5 10h4" />
+        <circle cx="10" cy="10" r="1.6" />
+      </svg>
+    );
+  }
+  if (name === "security") {
+    return (
+      <svg {...common}>
+        <path d="M10 3.5l5.5 2.2v3.8c0 3.2-2.3 5.6-5.5 6.8-3.2-1.2-5.5-3.6-5.5-6.8V5.7L10 3.5z" />
+      </svg>
+    );
+  }
+  if (name === "display") {
+    return (
+      <svg {...common}>
+        <rect x="3.2" y="4.5" width="13.6" height="9.2" rx="1.6" />
+        <path d="M8 16.2h4" />
+      </svg>
+    );
+  }
+  if (name === "permissions") {
+    return (
+      <svg {...common}>
+        <path d="M5 10.4l3 3 7-7.4" />
+      </svg>
+    );
+  }
+  if (name === "about") {
+    return (
+      <svg {...common}>
+        <circle cx="10" cy="10" r="6.4" />
+        <path d="M10 9v4.2M10 6.6h.01" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <circle cx="10" cy="10" r="6.4" />
+      <circle cx="10" cy="10" r="2" />
+    </svg>
+  );
+}
+
 function Titlebar({
   onSettings,
   compact,
@@ -1151,7 +1230,17 @@ function Titlebar({
           onClick={onSettings}
           title={settingsLabel ?? "Settings"}
         >
-          <span className="settings-btn-icon" aria-hidden>⚙</span>
+          <span className="settings-btn-icon" aria-hidden>
+            <svg viewBox="0 0 20 20" width="15" height="15" fill="none" aria-hidden>
+              <path
+                d="M8.15 2.7h3.7l.45 1.85 1.7.7 1.75-1.05 2.6 2.6-1.05 1.75.7 1.7 1.85.45v3.7l-1.85.45-.7 1.7 1.05 1.75-2.6 2.6-1.75-1.05-1.7.7-.45 1.85H8.15l-.45-1.85-1.7-.7-1.75 1.05-2.6-2.6 1.05-1.75-.7-1.7L2.2 11.85V8.15l1.85-.45.7-1.7-1.05-1.75 2.6-2.6 1.75 1.05 1.7-.7.45-1.85z"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              />
+              <circle cx="10" cy="10" r="2.3" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+          </span>
           <span>{settingsLabel ?? "Settings"}</span>
           {needsPermissions && <span className="settings-alert" aria-hidden />}
         </button>
@@ -1216,7 +1305,7 @@ function PreviewRemoteScreen({ locale }: { locale: Locale }) {
 function Logo({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className="logo" aria-hidden>
-      <rect x="1" y="1" width="30" height="30" rx="8" fill="#DC2626" />
+      <rect x="1" y="1" width="30" height="30" rx="8" fill="#c2414a" />
       <g stroke="#fff" strokeWidth="2.7" strokeLinecap="round">
         <path d="M9.2 9.2 L13.05 13.05" />
         <path d="M22.8 9.2 L18.95 13.05" />
@@ -1293,7 +1382,11 @@ function DeviceListItem({
       <PlatformBadge os={os} label={osLabel} />
       <div className="recent-main">
         <span className="recent-name">
-          {favorite ? "★ " : ""}
+          {favorite ? (
+            <svg className="fav-mark" viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+              <path d="M8 2.4l1.7 3.4 3.8.6-2.7 2.7.6 3.8L8 11.1 4.6 12.9l.6-3.8L2.5 6.4l3.8-.6L8 2.4z" fill="currentColor" />
+            </svg>
+          ) : null}
           {name}
         </span>
         <span className="recent-meta">
@@ -1323,19 +1416,25 @@ function Settings({
   onRefreshPerms: () => void;
   onBack: () => void;
   onSettings: (patch: Partial<AppSettings>) => void;
-  onPermanentPassword: (password: string) => void;
+  onPermanentPassword: (password: string) => void | Promise<void>;
 }) {
   const [tab, setTab] = useState(initialTab);
   const [permanent, setPermanent] = useState("");
   const [copiedLan, setCopiedLan] = useState(false);
   const tr = (key: MessageKey) => t(locale, key);
+
+  const savePermanent = async () => {
+    const value = normalizePasswordInput(permanent);
+    await onPermanentPassword(value);
+    if (isValidPassword(value)) setPermanent("");
+  };
   const tabs: { id: string; key: MessageKey; icon: string }[] = [
-    { id: "general", key: "tabGeneral", icon: "◎" },
-    { id: "connection", key: "tabConnection", icon: "⧉" },
-    { id: "security", key: "tabSecurity", icon: "🔒" },
-    { id: "display", key: "tabDisplay", icon: "◐" },
-    { id: "permissions", key: "tabPermissions", icon: "✓" },
-    { id: "about", key: "tabAbout", icon: "ℹ" },
+    { id: "general", key: "tabGeneral", icon: "general" },
+    { id: "connection", key: "tabConnection", icon: "connection" },
+    { id: "security", key: "tabSecurity", icon: "security" },
+    { id: "display", key: "tabDisplay", icon: "display" },
+    { id: "permissions", key: "tabPermissions", icon: "permissions" },
+    { id: "about", key: "tabAbout", icon: "about" },
   ];
 
   return (
@@ -1351,7 +1450,7 @@ function Settings({
         <nav className="settings-nav">
           {tabs.map((item) => (
             <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
-              <span className="nav-icon" aria-hidden>{item.icon}</span>
+              <span className="nav-icon" aria-hidden><NavGlyph name={item.icon} /></span>
               <span>{tr(item.key)}</span>
               {item.id === "permissions" && perms && perms.platform === "macos" && !perms.all_granted && (
                 <span className="nav-badge">{3 - grantedPermCount(perms)}</span>
@@ -1366,7 +1465,7 @@ function Settings({
                 <p className="pane-title">{tr("tabGeneral")}</p>
                 <p className="pane-sub">{tr("setGeneralSub")}</p>
               </header>
-              <SettingsSection title={tr("tabGeneral")}>
+              <SettingsSection>
                 <SettingToggle
                   label={tr("startAtLogin")}
                   hint={tr("startAtLoginHint")}
@@ -1490,20 +1589,35 @@ function Settings({
                   <div className="set-item-copy">
                     <strong>{tr("permanentPassword")}</strong>
                     <p className="set-item-hint">{tr("permanentPasswordHint")}</p>
+                    {snap.has_permanent_password && (
+                      <p className="set-item-status">{tr("permanentPasswordSet")}</p>
+                    )}
                   </div>
-                  <input
-                    type="password"
-                    value={permanent}
-                    placeholder={snap.has_permanent_password ? "••••••••" : tr("setPassword")}
-                    onChange={(e) => setPermanent(e.target.value)}
-                    onBlur={() => permanent && onPermanentPassword(permanent)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        permanent && onPermanentPassword(permanent);
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                  />
+                  <div className="custom-password-row">
+                    <input
+                      className="pw-input"
+                      value={permanent}
+                      placeholder={snap.has_permanent_password ? "••••••••" : tr("setPassword")}
+                      maxLength={16}
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      onChange={(e) => setPermanent(normalizePasswordInput(e.target.value))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void savePermanent();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="ghost save-password"
+                      onClick={() => void savePermanent()}
+                    >
+                      {tr("savePassword")}
+                    </button>
+                  </div>
                 </label>
               </SettingsSection>
               <SettingsSection title={tr("tabSecurity")}>
@@ -1682,7 +1796,7 @@ function PermissionsPanel({
             <>
               <p className="perm-wizard-step">{tr("permCurrentStep")}</p>
               <p className="perm-wizard-lead">
-                {tr(permItems(perms!).find((p) => p.kind === next)!.titleKey)} —{" "}
+                {tr(permItems(perms!).find((p) => p.kind === next)!.titleKey)}{" "}
                 {tr(permItems(perms!).find((p) => p.kind === next)!.whyKey)}
               </p>
               <button
@@ -1801,16 +1915,18 @@ function SettingsSection({
   subtitle,
   children,
 }: {
-  title: string;
+  title?: string;
   subtitle?: string;
   children: ReactNode;
 }) {
   return (
     <section className="set-section">
-      <header className="set-section-head">
-        <h3>{title}</h3>
-        {subtitle && <p>{subtitle}</p>}
-      </header>
+      {(title || subtitle) && (
+        <header className="set-section-head">
+          {title && <h3>{title}</h3>}
+          {subtitle && <p>{subtitle}</p>}
+        </header>
+      )}
       <div className="set-section-body">{children}</div>
     </section>
   );
@@ -2014,7 +2130,7 @@ function ConnectionStatusPanel({
       </div>
       <div className="status-panel-item">
         <span>{tr("signalLatency")}</span>
-        <strong className={latencyLabel(snap.rtt_ms)}>{snap.rtt_ms ? `${snap.rtt_ms} ms` : "—"}</strong>
+        <strong className={latencyLabel(snap.rtt_ms)}>{snap.rtt_ms ? `${snap.rtt_ms} ms` : "-"}</strong>
       </div>
     </div>
   );
@@ -2065,10 +2181,14 @@ function ConnectPasswordModal({
           <span>{tr("password")}</span>
           <input
             autoFocus
-            className="connect-input"
+            className="connect-input pw-input"
             value={password}
-            onChange={(e) => onPasswordChange(e.target.value.toUpperCase())}
+            onChange={(e) => onPasswordChange(normalizePasswordInput(e.target.value))}
             placeholder="••••••"
+            maxLength={16}
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
             onKeyDown={(e) => e.key === "Enter" && onConfirm()}
           />
         </label>
@@ -2106,7 +2226,6 @@ function ConnectFlowOverlay({
           <div className="connect-flow-brand">
             <Logo size={28} />
             <div>
-              <p className="connect-flow-kicker">RemoteX</p>
               <h2>{tr("connecting")}</h2>
             </div>
           </div>
@@ -2157,7 +2276,7 @@ function ConnectFlowOverlay({
                   <span>{tr(CONNECT_STEP_STATUS[index])}</span>
                 </div>
                 <span className="connect-step-tag">
-                  {done ? tr("connectLinkReady") : active ? tr("connecting") : "—"}
+                  {done ? tr("connectLinkReady") : active ? tr("connecting") : "-"}
                 </span>
               </li>
             );

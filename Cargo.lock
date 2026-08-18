@@ -3875,7 +3875,7 @@ dependencies = [
 
 [[package]]
 name = "protocol"
-version = "2.0.3"
+version = "2.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -4214,7 +4214,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "remotex"
-version = "2.0.3"
+version = "2.0.4"
 dependencies = [
  "protocol",
  "remotex-capture",
@@ -4235,7 +4235,7 @@ dependencies = [
 
 [[package]]
 name = "remotex-capture"
-version = "2.0.3"
+version = "2.0.4"
 dependencies = [
  "image",
  "jpeg-encoder",
@@ -4247,7 +4247,7 @@ dependencies = [
 
 [[package]]
 name = "remotex-core"
-version = "2.0.3"
+version = "2.0.4"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -4275,7 +4275,7 @@ dependencies = [
 
 [[package]]
 name = "remotex-input"
-version = "2.0.3"
+version = "2.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -4284,7 +4284,7 @@ dependencies = [
 
 [[package]]
 name = "remotex-permissions"
-version = "2.0.3"
+version = "2.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -4745,7 +4745,7 @@ dependencies = [
 
 [[package]]
 name = "signaling"
-version = "2.0.3"
+version = "2.0.4"
 dependencies = [
  "axum",
  "futures-util",
