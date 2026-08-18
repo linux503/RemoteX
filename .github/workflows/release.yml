@@ -43,10 +43,10 @@ jobs:
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
             ## RemoteX ${{ github.ref_name }}
-            - Fix line 1/2 showing unreachable when manually selected
-            - LAN hub heartbeat, connect timeout, and stale-session guards
-            - Host-side disconnect detection and lighter snapshots during sessions
-            - Viewer performance: drop frame polling, debounce viewport resize
+            - Fix cancel-during-connect sending an empty hangup
+            - Show real session bandwidth instead of fake numbers
+            - Faster frame decode, streamed file send, and macOS capture cooldown
+            - Longer peer timeout so brief stalls no longer drop the session
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

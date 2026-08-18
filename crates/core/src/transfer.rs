@@ -3,6 +3,7 @@ use protocol::ClientMsg;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -141,7 +142,8 @@ pub async fn send_file(
             .unwrap_or("file.bin"),
     );
     let id = Uuid::new_v4().to_string();
-    let bytes = std::fs::read(path)?;
+    let file = std::fs::File::open(path)?;
+    let mut reader = BufReader::new(file);
     send_signal(
         session_id,
         json!({ "kind": "file_begin", "id": id, "name": name, "size": size }),
@@ -150,20 +152,27 @@ pub async fn send_file(
         lan_outgoing,
     )
     .await;
-    for (index, chunk) in bytes.chunks(CHUNK_SIZE).enumerate() {
+    let mut buf = vec![0u8; CHUNK_SIZE];
+    let mut index = 0usize;
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
         send_signal(
             session_id,
             json!({
                 "kind": "file_chunk",
                 "id": id,
                 "index": index,
-                "data": B64.encode(chunk),
+                "data": B64.encode(&buf[..n]),
             }),
             outgoing,
             peer_outgoing,
             lan_outgoing,
         )
         .await;
+        index += 1;
     }
     send_signal(
         session_id,

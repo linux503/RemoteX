@@ -6,6 +6,7 @@ use input::{inject, InputEvent};
 use protocol::ClientMsg;
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, watch, Mutex};
@@ -59,11 +60,13 @@ pub fn start_host(
     lan_outgoing: Option<mpsc::Sender<ClientMsg>>,
     preview_tx: Option<watch::Sender<Option<RemoteFrame>>>,
     host_screen: Arc<Mutex<(u32, u32)>>,
+    link_bytes: Arc<(AtomicU64, AtomicU64)>,
 ) -> MediaHandle {
     let (stop_tx, stop_rx) = watch::channel(false);
     let (latest_out, latest_rx) = watch::channel(None::<Value>);
 
     let capture_stop = stop_rx.clone();
+    let link_stats = link_bytes.clone();
     let mut quality_rx = quality_rx;
     tokio::spawn(async move {
         let mut failures = 0u32;
@@ -116,6 +119,9 @@ pub fn start_host(
                         *host_screen.lock().await = primary_screen_size();
                     }
                     let encoded = B64.encode(&frame.bytes);
+                    link_stats
+                        .1
+                        .fetch_add(encoded.len() as u64, Ordering::Relaxed);
                     let remote = RemoteFrame {
                         width: frame.width,
                         height: frame.height,
@@ -199,7 +205,14 @@ pub fn handle_signal(
     allow_clipboard: bool,
     allow_file_transfer: bool,
     transfer_hub: &mut TransferHub,
+    link_rx: Option<&AtomicU64>,
+    _link_tx: Option<&AtomicU64>,
 ) -> crate::Result<Option<SignalSideEffect>> {
+    let track_rx = |bytes: usize| {
+        if let Some(counter) = link_rx {
+            counter.fetch_add(bytes as u64, Ordering::Relaxed);
+        }
+    };
     match data.get("kind").and_then(Value::as_str) {
         Some("frame") if matches!(role, SessionRole::Viewer) => {
             let Some(width) = data.get("width").and_then(Value::as_u64) else {
@@ -211,6 +224,7 @@ pub fn handle_signal(
             let Some(data) = data.get("data").and_then(Value::as_str) else {
                 return Ok(None);
             };
+            track_rx(data.len());
             let _ = frame_tx.send(Some(RemoteFrame {
                 width: width as u32,
                 height: height as u32,

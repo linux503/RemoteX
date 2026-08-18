@@ -74,7 +74,7 @@ pub fn generate_password() -> String {
 pub fn format_password(password: &str) -> String {
     password
         .chars()
-        .map(|c| c.to_string())
+        .map(|c| c.to_ascii_uppercase().to_string())
         .collect::<Vec<_>>()
         .join(" ")
 }

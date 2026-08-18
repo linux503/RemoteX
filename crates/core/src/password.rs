@@ -24,7 +24,7 @@ impl PasswordVault {
             let raw = std::fs::read_to_string(&path)?;
             let stored: StoredPasswords = serde_json::from_str(&raw)?;
             let temp = if is_valid_temp(&stored.temp) {
-                stored.temp
+                stored.temp.to_ascii_uppercase()
             } else {
                 generate_password()
             };
@@ -72,12 +72,19 @@ impl PasswordVault {
         Ok(())
     }
 
-    pub fn set_permanent(&mut self, password: &str) {
-        if password.trim().is_empty() {
+    pub fn set_permanent(&mut self, password: &str) -> Result<()> {
+        let normalized = normalize_temp(password);
+        if normalized.is_empty() {
             self.permanent_hash = None;
-        } else {
-            self.permanent_hash = Some(hash_password(password));
+            return Ok(());
         }
+        if !is_valid_temp(&normalized) {
+            return Err(Error::Message(
+                "Password must be 4–16 letters or numbers".into(),
+            ));
+        }
+        self.permanent_hash = Some(hash_password(&normalized));
+        Ok(())
     }
 
     pub fn has_permanent(&self) -> bool {
@@ -85,20 +92,18 @@ impl PasswordVault {
     }
 
     pub fn verify(&self, password: &str, unattended: bool) -> AuthOutcome {
-        if unattended {
-            if let Some(hash) = &self.permanent_hash {
-                if hash_password(password) == *hash {
-                    return AuthOutcome::Unattended;
-                }
-            }
+        let normalized = normalize_temp(password);
+        let matches_permanent = self.permanent_hash.as_ref().map_or(false, |hash| {
+            hash_password(&normalized) == *hash || hash_password(password) == *hash
+        });
+        if unattended && matches_permanent {
+            return AuthOutcome::Unattended;
         }
-        if password.eq_ignore_ascii_case(&self.temp) {
+        if normalized.eq_ignore_ascii_case(&self.temp) {
             return AuthOutcome::NeedConfirm;
         }
-        if let Some(hash) = &self.permanent_hash {
-            if hash_password(password) == *hash {
-                return AuthOutcome::NeedConfirm;
-            }
+        if matches_permanent {
+            return AuthOutcome::NeedConfirm;
         }
         AuthOutcome::Failed
     }
@@ -156,5 +161,14 @@ mod tests {
     fn rejects_short_password() {
         let mut vault = PasswordVault::new();
         assert!(vault.set_temp("ab1").is_err());
+    }
+
+    #[test]
+    fn permanent_password_is_uppercase_and_persists() {
+        let mut vault = PasswordVault::new();
+        vault.set_permanent("ab12").unwrap();
+        assert!(vault.has_permanent());
+        assert_eq!(vault.verify("AB12", true), AuthOutcome::Unattended);
+        assert_eq!(vault.verify("ab12", true), AuthOutcome::Unattended);
     }
 }

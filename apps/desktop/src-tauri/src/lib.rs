@@ -89,6 +89,14 @@ async fn decline(app: AppHandle, state: State<'_, SharedState>) -> Result<(), Co
 }
 
 #[tauri::command]
+async fn cancel_connect(app: AppHandle, state: State<'_, SharedState>) -> Result<(), CommandError> {
+    let mut guard = state.lock().await;
+    guard.cancel_connect().await;
+    emit_snapshot(&app, &guard).await;
+    Ok(())
+}
+
+#[tauri::command]
 async fn hangup(app: AppHandle, state: State<'_, SharedState>) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
     guard.hangup().await;
@@ -381,6 +389,7 @@ pub fn run() {
             connect,
             accept,
             decline,
+            cancel_connect,
             hangup,
             save_settings,
             set_permanent_password,

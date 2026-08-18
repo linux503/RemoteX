@@ -1,7 +1,7 @@
 use protocol::{format_device_id, ClientMsg, DeviceInfo, OsKind, ServerMsg};
-use rand::Rng;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch, Mutex};
@@ -132,6 +132,8 @@ pub struct AppState {
     transfer_hub: TransferHub,
     clipboard_sync: Arc<Mutex<ClipboardSyncState>>,
     clipboard_stop: Option<watch::Sender<bool>>,
+    link_bytes: Arc<(AtomicU64, AtomicU64)>,
+    link_stats_at: Instant,
 }
 
 impl AppState {
@@ -223,6 +225,8 @@ impl AppState {
                 suppress_until: None,
             })),
             clipboard_stop: None,
+            link_bytes: Arc::new((AtomicU64::new(0), AtomicU64::new(0))),
+            link_stats_at: Instant::now(),
         }));
 
         tokio::spawn(async move {
@@ -276,7 +280,7 @@ impl AppState {
                 } else if guard.phase == SessionPhase::Connected {
                     if guard
                         .last_peer_alive
-                        .is_some_and(|at| at.elapsed() > Duration::from_secs(4))
+                        .is_some_and(|at| at.elapsed() > Duration::from_secs(12))
                     {
                         let was_host = guard.session_role == Some(SessionRole::Host);
                         guard.last_error = Some("Remote device disconnected".into());
@@ -391,7 +395,7 @@ impl AppState {
     }
 
     pub fn set_permanent_password(&mut self, password: &str) -> Result<()> {
-        self.passwords.set_permanent(password);
+        self.passwords.set_permanent(password)?;
         self.passwords.save(&self.dir)
     }
 
@@ -556,12 +560,27 @@ impl AppState {
     pub async fn hangup(&mut self) {
         let was_host = self.session_role == Some(SessionRole::Host);
         if let Some(session) = &self.session {
-            self.send_control(ClientMsg::Hangup {
-                session_id: session.session_id.clone(),
-            })
-            .await;
+            if !session.session_id.is_empty() {
+                self.send_control(ClientMsg::Hangup {
+                    session_id: session.session_id.clone(),
+                })
+                .await;
+            }
+        }
+        if self.phase == SessionPhase::Connecting {
+            self.peer_outgoing = None;
+            self.peer_priority = None;
         }
         self.finish_session(was_host);
+    }
+
+    pub async fn cancel_connect(&mut self) {
+        if self.phase != SessionPhase::Connecting {
+            return;
+        }
+        self.peer_outgoing = None;
+        self.peer_priority = None;
+        self.reset_session();
     }
 
     fn reset_session(&mut self) {
@@ -579,6 +598,9 @@ impl AppState {
         self.connect_started = None;
         self.session_role = None;
         self.phase = SessionPhase::Idle;
+        self.link_bytes.0.store(0, Ordering::Relaxed);
+        self.link_bytes.1.store(0, Ordering::Relaxed);
+        self.link_stats_at = Instant::now();
     }
 
     fn finish_session(&mut self, was_host: bool) {
@@ -781,6 +803,7 @@ impl AppState {
                 self.lan_outgoing.clone(),
                 Some(self.frame_tx.clone()),
                 self.host_screen.clone(),
+                self.link_bytes.clone(),
             ));
         }
         self.start_clipboard_sync();
@@ -795,11 +818,22 @@ impl AppState {
         let Some(session) = &mut self.session else {
             return;
         };
-        let mut rng = rand::thread_rng();
-        let target = quality_target_kbps(&session.quality) as f32;
-        let jitter: f32 = rng.gen_range(-0.08..0.08);
-        session.down_kbps = (target * (1.0 + jitter)).max(400.0) as u32;
-        session.up_kbps = rng.gen_range(110..260);
+        let elapsed = self.link_stats_at.elapsed().as_secs_f64().max(0.75);
+        let rx = self.link_bytes.0.swap(0, Ordering::Relaxed);
+        let tx = self.link_bytes.1.swap(0, Ordering::Relaxed);
+        self.link_stats_at = Instant::now();
+        let kbps = |bytes: u64| ((bytes as f64 * 8.0 / 1000.0) / elapsed).round() as u32;
+        match self.session_role {
+            Some(SessionRole::Viewer) => {
+                session.down_kbps = kbps(rx);
+                session.up_kbps = kbps(tx);
+            }
+            Some(SessionRole::Host) => {
+                session.up_kbps = kbps(tx);
+                session.down_kbps = kbps(rx);
+            }
+            None => {}
+        }
         if self.network_rtt_ms > 0 {
             session.rtt_ms = self.network_rtt_ms;
         }
@@ -875,8 +909,8 @@ impl AppState {
                     peer_name: peer.name,
                     peer_os: os_label(&peer.os),
                     rtt_ms: self.network_rtt_ms.max(1),
-                    down_kbps: quality_target_kbps(&self.settings.quality),
-                    up_kbps: 180,
+                    down_kbps: 0,
+                    up_kbps: 0,
                     path: path.into(),
                     quality: self.settings.quality.clone(),
                 });
@@ -972,6 +1006,8 @@ impl AppState {
                     self.settings.allow_clipboard,
                     self.settings.allow_file_transfer,
                     &mut self.transfer_hub,
+                    Some(&self.link_bytes.0),
+                    Some(&self.link_bytes.1),
                 ) {
                     Ok(Some(SignalSideEffect::ClipboardSynced(_))) => {
                         let mut sync = self.clipboard_sync.lock().await;
@@ -1011,14 +1047,5 @@ fn os_label(os: &OsKind) -> String {
         OsKind::Windows => "windows".into(),
         OsKind::Linux => "linux".into(),
         OsKind::Unknown => "unknown".into(),
-    }
-}
-
-fn quality_target_kbps(quality: &str) -> u32 {
-    match quality {
-        "smooth" => 2200,
-        "high" => 8000,
-        "original" => 9000,
-        _ => 4500,
     }
 }

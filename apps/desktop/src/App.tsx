@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import pkg from "../package.json";
 import { previewSnapshot, type AppSettings, type PermissionsStatus, type Snapshot } from "./types";
 import { resolveLocale, t, translateError, type Locale, type MessageKey } from "./i18n";
+
+const APP_VERSION = pkg.version;
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;
 
@@ -188,10 +191,8 @@ function RemoteDesktop({
     }
     void (async () => {
       try {
-        const bin = atob(data);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const blob = new Blob([bytes], { type: "image/jpeg" });
+        const res = await fetch(`data:image/jpeg;base64,${data}`);
+        const blob = await res.blob();
         const bmp = await createImageBitmap(blob, {
           colorSpaceConversion: "none",
           premultiplyAlpha: "none",
@@ -720,11 +721,11 @@ export default function App() {
                 <div className="session-peer">
                   <span className="live-dot" aria-hidden />
                   <strong>{snap.session.peer_name}</strong>
-                  <span className={`pill ${snap.session.path === "p2p" || snap.session.path === "lan" ? "good" : ""}`}>
-                    {snap.session.path === "p2p"
-                      ? tr("directP2p")
-                      : snap.session.path === "lan"
-                        ? tr("lanDirect")
+                  <span className={`pill ${snap.session.path === "lan" ? "good" : ""}`}>
+                    {snap.session.path === "lan"
+                      ? tr("lanDirect")
+                      : snap.session.path === "p2p"
+                        ? tr("directP2p")
                         : tr("relay")}
                   </span>
                   <span className={`pill ${latencyTone(snap.session.rtt_ms)}`}>
@@ -1069,7 +1070,7 @@ export default function App() {
             </section>
           </section>
 
-          <footer>RemoteX v2.0.3</footer>
+          <footer>RemoteX v{APP_VERSION}</footer>
         </main>
       )}
 
@@ -1093,7 +1094,7 @@ export default function App() {
           onCancel={() =>
             run(() =>
               isTauri()
-                ? invoke("hangup")
+                ? invoke("cancel_connect")
                 : Promise.resolve(setSnap({ ...snap, phase: "idle", session: null })),
             )
           }
@@ -1688,7 +1689,7 @@ function Settings({
               <h2>RemoteX</h2>
               <p>{tr("aboutTagline")}</p>
               <p className="muted">{tr("aboutNote")}</p>
-              <p className="about-version">v2.0.3 · macOS / Windows</p>
+              <p className="about-version">v{APP_VERSION} · macOS / Windows</p>
               <div className="about-features">
                 <p className="eyebrow">{tr("aboutFeaturesTitle")}</p>
                 <ul>

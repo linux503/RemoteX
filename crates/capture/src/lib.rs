@@ -161,7 +161,22 @@ fn encode_scaled(mut image: RgbaImage, max_width: u32, quality: u8) -> Result<Fr
 }
 
 #[cfg(target_os = "macos")]
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[cfg(target_os = "macos")]
+static LAST_SCREENCAPTURE_MS: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(target_os = "macos")]
 fn capture_screencapture_macos(max_width: u32, quality: u8) -> Result<FrameJpeg, CaptureError> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let last = LAST_SCREENCAPTURE_MS.load(Ordering::Relaxed);
+    if now.saturating_sub(last) < 2500 {
+        return Err(CaptureError::Message("screencapture cooldown".into()));
+    }
+    LAST_SCREENCAPTURE_MS.store(now, Ordering::Relaxed);
     let path = std::env::temp_dir().join(format!("remotex-frame-{}.jpg", std::process::id()));
     let status = std::process::Command::new("/usr/sbin/screencapture")
         .args(["-x", "-C", "-t", "jpg", path.to_str().unwrap_or("")])
