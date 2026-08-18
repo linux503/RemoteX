@@ -266,12 +266,12 @@ export default function App() {
   });
   const [view, setView] = useState<"home" | "settings">(previewScene === "settings" ? "settings" : "home");
   const [hidePassword, setHidePassword] = useState(false);
+  const [hideSessionToolbar, setHideSessionToolbar] = useState(false);
   const [connectId, setConnectId] = useState("");
   const [connectPassword, setConnectPassword] = useState("");
   const [passwordStep, setPasswordStep] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
-  const [customPassword, setCustomPassword] = useState("");
   const [chromeVisible, setChromeVisible] = useState(true);
   const chromeTimer = useRef<number | null>(null);
   const [connectStep, setConnectStep] = useState(0);
@@ -419,8 +419,9 @@ export default function App() {
   }, [snap.last_error, locale]);
 
   useEffect(() => {
-    setCustomPassword(snap.temp_password);
-  }, [snap.temp_password]);
+    // Leaving connected state should restore the default top toolbar UI.
+    if (snap.phase !== "connected") setHideSessionToolbar(false);
+  }, [snap.phase]);
 
   const formatIdInput = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 9);
@@ -444,23 +445,6 @@ export default function App() {
     setCopied("both");
     window.setTimeout(() => setCopied(""), 1200);
   };
-
-  const saveCustomPassword = () =>
-    run(async () => {
-      const nextValue = customPassword.trim();
-      if (!nextValue) return;
-      if (isTauri()) {
-        const next = await invoke<Snapshot>("set_temp_password", { password: nextValue });
-        setSnap(next);
-      } else {
-        const normalized = nextValue.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-        setSnap({
-          ...snap,
-          temp_password: normalized,
-          formatted_password: normalized.split("").join(" "),
-        });
-      }
-    });
 
   const run = async (fn: () => Promise<unknown>) => {
     try {
@@ -570,65 +554,88 @@ export default function App() {
           onPointerDown={bumpChrome}
         >
           <RemoteDesktop locale={locale} isHost={snap.is_host} />
-          <div className={`session-chrome${chromeVisible ? " show" : ""}`}>
-            <div className="session-toolbar">
-              <div className="session-peer">
-                <span className="live-dot" aria-hidden />
-                <strong>{snap.session.peer_name}</strong>
-                <span className={`pill ${snap.session.path === "p2p" ? "good" : ""}`}>
-                  {snap.session.path === "p2p" ? tr("directP2p") : tr("relay")}
-                </span>
-                <span className={`pill ${latencyTone(snap.session.rtt_ms)}`}>
-                  {snap.session.rtt_ms || "—"} ms
-                </span>
-              </div>
-              <div className="quality-switch" role="radiogroup" aria-label={tr("displayQuality")}>
-                {([
-                  ["smooth", "qualitySmooth"],
-                  ["balanced", "qualityBalanced"],
-                  ["high", "qualityHigh"],
-                ] as const).map(([value, key]) => (
+          {!hideSessionToolbar ? (
+            <div className={`session-chrome${chromeVisible ? " show" : ""}`}>
+              <div className="session-toolbar">
+                <div className="session-peer">
+                  <span className="live-dot" aria-hidden />
+                  <strong>{snap.session.peer_name}</strong>
+                  <span className={`pill ${snap.session.path === "p2p" ? "good" : ""}`}>
+                    {snap.session.path === "p2p" ? tr("directP2p") : tr("relay")}
+                  </span>
+                  <span className={`pill ${latencyTone(snap.session.rtt_ms)}`}>
+                    {snap.session.rtt_ms || "—"} ms
+                  </span>
+                </div>
+                <div className="quality-switch" role="radiogroup" aria-label={tr("displayQuality")}>
+                  {([
+                    ["smooth", "qualitySmooth"],
+                    ["balanced", "qualityBalanced"],
+                    ["high", "qualityHigh"],
+                  ] as const).map(([value, key]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={sessionQuality === value}
+                      className={sessionQuality === value ? "on" : ""}
+                      onClick={() => applyQuality(value)}
+                    >
+                      {t(locale, key)}
+                    </button>
+                  ))}
+                </div>
+                {snap.settings.allow_file_transfer && (
                   <button
-                    key={value}
                     type="button"
-                    role="radio"
-                    aria-checked={sessionQuality === value}
-                    className={sessionQuality === value ? "on" : ""}
-                    onClick={() => applyQuality(value)}
+                    className="ghost session-send-file"
+                    onClick={() =>
+                      run(async () => {
+                        setToast(tr("fileSending"));
+                        await invoke("session_pick_send_file");
+                        window.setTimeout(() => setToast(""), 1800);
+                      })
+                    }
                   >
-                    {t(locale, key)}
+                    {tr("sendFile")}
                   </button>
-                ))}
-              </div>
-              {snap.settings.allow_file_transfer && (
+                )}
                 <button
                   type="button"
-                  className="ghost session-send-file"
+                  className="ghost session-hide-toolbar"
+                  onClick={() => {
+                    setChromeVisible(false);
+                    setHideSessionToolbar(true);
+                  }}
+                >
+                  {tr("hideToolbar")}
+                </button>
+                <button
+                  className="danger"
                   onClick={() =>
-                    run(async () => {
-                      setToast(tr("fileSending"));
-                      await invoke("session_pick_send_file");
-                      window.setTimeout(() => setToast(""), 1800);
-                    })
+                    run(() =>
+                      isTauri()
+                        ? invoke("hangup")
+                        : Promise.resolve(setSnap({ ...snap, phase: "idle", session: null })),
+                    )
                   }
                 >
-                  {tr("sendFile")}
+                  {tr("end")}
                 </button>
-              )}
-              <button
-                className="danger"
-                onClick={() =>
-                  run(() =>
-                    isTauri()
-                      ? invoke("hangup")
-                      : Promise.resolve(setSnap({ ...snap, phase: "idle", session: null })),
-                  )
-                }
-              >
-                {tr("end")}
-              </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <button
+              type="button"
+              className="ghost session-toolbar-show"
+              onClick={() => {
+                setHideSessionToolbar(false);
+                setChromeVisible(true);
+              }}
+            >
+              {tr("showToolbar")}
+            </button>
+          )}
         </div>
         {toast && (
           <div className="toast" role="status">
@@ -772,25 +779,6 @@ export default function App() {
                       {copied === "both" ? tr("copied") : tr("copyBoth")}
                     </button>
                   </div>
-                  <label className="custom-password inline">
-                    <span>{tr("customPassword")}</span>
-                    <div className="custom-password-row">
-                      <input
-                        value={customPassword}
-                        onChange={(e) => setCustomPassword(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
-                        placeholder={tr("passwordHint")}
-                        maxLength={16}
-                        spellCheck={false}
-                        onKeyDown={(e) => e.key === "Enter" && saveCustomPassword()}
-                        onBlur={() => {
-                          if (customPassword && customPassword !== snap.temp_password) saveCustomPassword();
-                        }}
-                      />
-                      <button type="button" className="ghost save-password" onClick={saveCustomPassword}>
-                        {tr("savePassword")}
-                      </button>
-                    </div>
-                  </label>
                 </div>
               </div>
             </section>
@@ -879,7 +867,7 @@ export default function App() {
             </section>
           )}
 
-          <footer>RemoteX v2.0.0</footer>
+          <footer>RemoteX v2.0.1</footer>
         </main>
       )}
 
@@ -1390,7 +1378,7 @@ function Settings({
               <h2>RemoteX</h2>
               <p>{tr("aboutTagline")}</p>
               <p className="muted">{tr("aboutNote")}</p>
-              <p className="about-version">v2.0.0 · macOS / Windows</p>
+              <p className="about-version">v2.0.1 · macOS / Windows</p>
               <div className="about-features">
                 <p className="eyebrow">{tr("aboutFeaturesTitle")}</p>
                 <ul>

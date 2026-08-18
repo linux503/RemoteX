@@ -42,11 +42,10 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
-            ## RemoteX v2.0.0
-            - New macOS-style home screen and matching website design
-            - Clipboard sync and file transfer during sessions
-            - Smart macOS permission guide that opens the right panel and checks progress
-            - Auto line selection with fallback across Line 1 and Line 2
+            ## RemoteX ${{ github.ref_name }}
+            - Clearer session UI: hideable top session toolbar
+            - Simplified credentials card: temporary password only
+            - Card sizing/layout polish + updated website download links
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
