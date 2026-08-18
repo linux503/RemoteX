@@ -43,9 +43,10 @@ jobs:
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
             ## RemoteX ${{ github.ref_name }}
-            - Home layout, color, and typography polish
-            - Settings: aligned sidebar, refined back button, segmented theme/options
-            - LAN-first connect, auto screen fit, and faster disconnect handling
+            - Fix line 1/2 showing unreachable when manually selected
+            - LAN hub heartbeat, connect timeout, and stale-session guards
+            - Host-side disconnect detection and lighter snapshots during sessions
+            - Viewer performance: drop frame polling, debounce viewport resize
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

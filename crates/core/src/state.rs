@@ -127,6 +127,7 @@ pub struct AppState {
     peer_link_id: u64,
     next_peer_link_id: u64,
     last_peer_alive: Option<Instant>,
+    connect_started: Option<Instant>,
     events: mpsc::Sender<AppEvent>,
     transfer_hub: TransferHub,
     clipboard_sync: Arc<Mutex<ClipboardSyncState>>,
@@ -141,14 +142,15 @@ impl AppState {
         let mut settings = AppSettings::load(&dir)?;
         let recents = RecentsStore::load(&dir)?;
         let passwords = PasswordVault::load(&dir).unwrap_or_else(|_| PasswordVault::new());
+        let probe = settings::probe_best_line().await;
         let pick = if settings.is_auto() {
-            settings::probe_best_line().await
+            probe
         } else {
             LinePick {
                 line: settings.signaling_line.clone(),
                 url: settings.signaling_url.clone(),
-                line1_rtt_ms: 0,
-                line2_rtt_ms: 0,
+                line1_rtt_ms: probe.line1_rtt_ms,
+                line2_rtt_ms: probe.line2_rtt_ms,
             }
         };
         settings.signaling_url = pick.url.clone();
@@ -214,6 +216,7 @@ impl AppState {
             peer_link_id: 0,
             next_peer_link_id: 1,
             last_peer_alive: None,
+            connect_started: None,
             events: evt_tx.clone(),
             transfer_hub: TransferHub::default(),
             clipboard_sync: Arc::new(Mutex::new(ClipboardSyncState {
@@ -259,21 +262,34 @@ impl AppState {
                 let mut guard = ping_state.lock().await;
                 guard.heartbeat_sent = Some(Instant::now());
                 let _ = guard.priority.try_send(ClientMsg::Heartbeat);
-                if guard.phase == SessionPhase::Connected {
-                    if guard.session_role == Some(SessionRole::Viewer) {
-                        if guard
-                            .last_peer_alive
-                            .is_some_and(|at| at.elapsed() > Duration::from_secs(4))
-                        {
-                            guard.last_error = Some("Remote device disconnected".into());
-                            guard.reset_session();
-                        }
+                if let Some(lan) = &guard.lan_priority {
+                    let _ = lan.try_send(ClientMsg::Heartbeat);
+                }
+                if guard.phase == SessionPhase::Connecting {
+                    if guard
+                        .connect_started
+                        .is_some_and(|at| at.elapsed() > Duration::from_secs(45))
+                    {
+                        guard.last_error = Some("Connection timed out".into());
+                        guard.reset_session();
                     }
-                    if guard.phase == SessionPhase::Connected {
+                } else if guard.phase == SessionPhase::Connected {
+                    if guard
+                        .last_peer_alive
+                        .is_some_and(|at| at.elapsed() > Duration::from_secs(4))
+                    {
+                        let was_host = guard.session_role == Some(SessionRole::Host);
+                        guard.last_error = Some("Remote device disconnected".into());
+                        guard.finish_session(was_host);
+                    } else {
                         guard.tick_link_stats();
                     }
                 }
-                let snap = guard.snapshot_async().await;
+                let snap = if guard.phase == SessionPhase::Connected {
+                    guard.snapshot()
+                } else {
+                    guard.snapshot_async().await
+                };
                 drop(guard);
                 let _ = ping_events.send(AppEvent::Snapshot(snap)).await;
             }
@@ -356,8 +372,10 @@ impl AppState {
 
     pub async fn snapshot_async(&self) -> Snapshot {
         let mut snap = self.snapshot();
-        if let Some(lan) = &self.lan {
-            snap.nearby = lan.list().await;
+        if self.phase != SessionPhase::Connected {
+            if let Some(lan) = &self.lan {
+                snap.nearby = lan.list().await;
+            }
         }
         snap
     }
@@ -379,16 +397,14 @@ impl AppState {
 
     pub async fn update_settings(&mut self, mut settings: AppSettings) -> Result<()> {
         settings.normalize();
+        let probe = settings::probe_best_line().await;
+        self.line1_rtt_ms = probe.line1_rtt_ms;
+        self.line2_rtt_ms = probe.line2_rtt_ms;
         if settings.is_auto() {
-            let pick = settings::probe_best_line().await;
-            settings.signaling_url = pick.url.clone();
-            self.active_line = pick.line;
-            self.line1_rtt_ms = pick.line1_rtt_ms;
-            self.line2_rtt_ms = pick.line2_rtt_ms;
+            settings.signaling_url = probe.url.clone();
+            self.active_line = probe.line;
         } else {
             self.active_line = settings.signaling_line.clone();
-            self.line1_rtt_ms = 0;
-            self.line2_rtt_ms = 0;
         }
         let url_changed = settings.signaling_url != self.settings.signaling_url;
         self.settings = settings.clone();
@@ -422,6 +438,7 @@ impl AppState {
         self.last_error = None;
         self.session_role = Some(SessionRole::Viewer);
         self.phase = SessionPhase::Connecting;
+        self.connect_started = Some(Instant::now());
         self.session = Some(SessionView {
             session_id: String::new(),
             peer_id: target_id.clone(),
@@ -559,6 +576,7 @@ impl AppState {
         self.connect_tried_public = false;
         self.peer_link_id = 0;
         self.last_peer_alive = None;
+        self.connect_started = None;
         self.session_role = None;
         self.phase = SessionPhase::Idle;
     }
@@ -839,6 +857,12 @@ impl AppState {
                 }
             }
             ServerMsg::Accepted { session_id, peer } => {
+                if self.phase != SessionPhase::Connecting
+                    || self.session_role != Some(SessionRole::Viewer)
+                {
+                    self.send_control(ClientMsg::Hangup { session_id }).await;
+                    return;
+                }
                 self.pending_connect = None;
                 self.connect_tried_fallback = false;
                 self.recents
@@ -891,7 +915,9 @@ impl AppState {
                         if self.settings.is_auto() && !self.connect_tried_fallback {
                             self.connect_tried_fallback = true;
                             let other = settings::other_line_url(&self.settings.signaling_url);
+                            self.settings.signaling_url = other.to_string();
                             self.active_line = settings::line_of_url(other).into();
+                            let _ = self.signaling_url_tx.send(self.settings.signaling_url.clone());
                             self.dial_peer_hub(other.to_string(), msg).await;
                             return;
                         }

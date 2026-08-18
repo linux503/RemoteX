@@ -207,6 +207,7 @@ const en = {
   peerNotFound: "Device not found on this Wi-Fi. Open RemoteX on the other computer first.",
   peerDeclined: "The other device declined",
   peerDisconnected: "Remote device disconnected",
+  connectTimeout: "Connection timed out",
 };
 
 const zh: typeof en = {
@@ -416,6 +417,7 @@ const zh: typeof en = {
   peerNotFound: "这个 Wi-Fi 里找不到该设备。请先在另一台电脑打开 RemoteX。",
   peerDeclined: "对方拒绝了连接",
   peerDisconnected: "对方设备已断开",
+  connectTimeout: "连接超时",
 };
 
 const dict = { en, zh };
@@ -440,6 +442,9 @@ export function translateError(locale: Locale, message: string): string {
   }
   if (message.includes("not found on this Wi-Fi") || message.includes("找不到该设备")) {
     return t(locale, "peerNotFound");
+  }
+  if (message.toLowerCase().includes("timed out") || message.includes("超时")) {
+    return t(locale, "connectTimeout");
   }
   if (message.toLowerCase().includes("disconnected") || message.includes("已断开")) {
     return t(locale, "peerDisconnected");

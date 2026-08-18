@@ -139,6 +139,7 @@ function RemoteDesktop({
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastData = useRef("");
+  const lastDataLen = useRef(0);
   const drawing = useRef(false);
   const frameSize = useRef({ w: 0, h: 0 });
   const didFitWindow = useRef(false);
@@ -167,7 +168,9 @@ function RemoteDesktop({
   };
 
   const drawFrame = (data: string) => {
-    if (!data || data === lastData.current || drawing.current) return;
+    if (!data || drawing.current) return;
+    if (data.length === lastDataLen.current && data === lastData.current) return;
+    lastDataLen.current = data.length;
     lastData.current = data;
     drawing.current = true;
     const canvas = canvasRef.current;
@@ -222,6 +225,7 @@ function RemoteDesktop({
         setWaiting((w) => (w ? false : w));
       } catch {
         lastData.current = "";
+        lastDataLen.current = 0;
       } finally {
         drawing.current = false;
       }
@@ -240,18 +244,9 @@ function RemoteDesktop({
       const frame = await invoke<{ data: string } | null>("latest_frame").catch(() => null);
       if (alive && frame?.data) drawFrame(frame.data);
     })();
-    const fallback = window.setInterval(() => {
-      if (drawing.current) return;
-      void invoke<{ data: string } | null>("latest_frame")
-        .then((frame) => {
-          if (frame?.data) drawFrame(frame.data);
-        })
-        .catch(() => {});
-    }, 240);
     return () => {
       alive = false;
       unlisten?.();
-      window.clearInterval(fallback);
     };
   }, []);
 
@@ -260,12 +255,17 @@ function RemoteDesktop({
     sendViewport();
     const stage = stageRef.current;
     if (!stage || typeof ResizeObserver === "undefined") return;
+    let timer: number | undefined;
     const ro = new ResizeObserver(() => {
       layoutCanvas();
-      sendViewport();
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => sendViewport(), 200);
     });
     ro.observe(stage);
-    return () => ro.disconnect();
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      ro.disconnect();
+    };
   }, [fit, isHost]);
 
   const norm = (clientX: number, clientY: number) => {
@@ -1047,7 +1047,7 @@ export default function App() {
             </section>
           </section>
 
-          <footer>RemoteX v2.0.2</footer>
+          <footer>RemoteX v2.0.3</footer>
         </main>
       )}
 
@@ -1574,7 +1574,7 @@ function Settings({
               <h2>RemoteX</h2>
               <p>{tr("aboutTagline")}</p>
               <p className="muted">{tr("aboutNote")}</p>
-              <p className="about-version">v2.0.2 · macOS / Windows</p>
+              <p className="about-version">v2.0.3 · macOS / Windows</p>
               <div className="about-features">
                 <p className="eyebrow">{tr("aboutFeaturesTitle")}</p>
                 <ul>
