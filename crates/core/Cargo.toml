@@ -26,3 +26,4 @@ if-addrs = "0.13"
 capture.workspace = true
 input.workspace = true
 base64 = "0.22"
+arboard = "3.4"

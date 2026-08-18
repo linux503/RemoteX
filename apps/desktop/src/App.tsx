@@ -76,6 +76,17 @@ async function openPermKind(kind: PermKind) {
   await invoke("open_permission_panel", { kind });
 }
 
+async function guidePermission(kind: PermKind, onUpdate: (perms: PermissionsStatus | null) => void) {
+  await openPermKind(kind);
+  for (let i = 0; i < 18; i += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 1200));
+    const latest = await fetchPermissions();
+    onUpdate(latest);
+    if (!latest) continue;
+    if (latest[kind] === "granted" || nextPermKind(latest) !== kind) return;
+  }
+}
+
 function modifierBits(event: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }) {
   let bits = 0;
   if (event.shiftKey) bits |= 1;
@@ -268,6 +279,7 @@ export default function App() {
     previewScene === "settings" || previewScene === "permissions" ? (previewScene === "permissions" ? "permissions" : "general") : "general",
   );
   const [perms, setPerms] = useState<PermissionsStatus | null>(null);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
     if (!isTauri()) {
@@ -372,6 +384,35 @@ export default function App() {
 
   const locale = resolveLocale(snap.settings.language);
   const tr = (key: MessageKey) => t(locale, key);
+  const activeLineLabel =
+    snap.settings.signaling_line === "auto"
+      ? snap.active_line === "2"
+        ? tr("line2")
+        : tr("line1")
+      : snap.settings.signaling_line === "2"
+        ? tr("line2")
+        : tr("line1");
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlistenToast: (() => void) | undefined;
+    let unlistenFile: (() => void) | undefined;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlistenToast = await listen<string>("toast", (event) => {
+        setToast(event.payload);
+        window.setTimeout(() => setToast(""), 3200);
+      });
+      unlistenFile = await listen<{ name: string; path: string }>("file-received", (event) => {
+        setToast(t(locale, "fileReceived").replace("{name}", event.payload.name));
+        window.setTimeout(() => setToast(""), 4200);
+      });
+    })();
+    return () => {
+      unlistenToast?.();
+      unlistenFile?.();
+    };
+  }, [locale]);
 
   useEffect(() => {
     if (snap.last_error) setError(translateError(locale, snap.last_error));
@@ -559,6 +600,21 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              {snap.settings.allow_file_transfer && (
+                <button
+                  type="button"
+                  className="ghost session-send-file"
+                  onClick={() =>
+                    run(async () => {
+                      setToast(tr("fileSending"));
+                      await invoke("session_pick_send_file");
+                      window.setTimeout(() => setToast(""), 1800);
+                    })
+                  }
+                >
+                  {tr("sendFile")}
+                </button>
+              )}
               <button
                 className="danger"
                 onClick={() =>
@@ -574,6 +630,11 @@ export default function App() {
             </div>
           </div>
         </div>
+        {toast && (
+          <div className="toast" role="status">
+            {toast}
+          </div>
+        )}
       </div>
     );
   }
@@ -625,171 +686,200 @@ export default function App() {
             </div>
           </header>
 
-          <section className="card device-card">
-            <div className="device-head">
-              <div>
-                <p className="eyebrow">{tr("thisDevice")}</p>
-                <div className="device-title-row">
-                  <h3 className="device-name">{snap.name}</h3>
-                  <span className={`platform-tag ${platformKind(snap.os)}`}>{osLabel(locale, snap.os)}</span>
+          <section className="home-grid">
+            <section className="card device-card">
+              <div className="device-head">
+                <div>
+                  <p className="eyebrow">{tr("thisDevice")}</p>
+                  <div className="device-title-row">
+                    <h3 className="device-name">{snap.name}</h3>
+                    <span className={`platform-tag ${platformKind(snap.os)}`}>{osLabel(locale, snap.os)}</span>
+                  </div>
+                </div>
+                <PlatformBadge os={snap.os} label={osLabel(locale, snap.os)} />
+              </div>
+              <div className="device-main-grid">
+                <div className="device-primary">
+                  <div className="id-row">
+                    <h2>{snap.formatted_id}</h2>
+                    <button
+                      type="button"
+                      className={`copy-chip ${copied === "ID" ? "copied" : ""}`}
+                      onClick={() => copy("ID", snap.formatted_id)}
+                    >
+                      {copied === "ID" ? tr("copied") : tr("copyId")}
+                    </button>
+                  </div>
+                  <div className="device-metrics">
+                    <span className={`metric-pill ${snap.ready ? "ready" : "offline"}`}>
+                      <span className="dot" />
+                      {snap.ready ? tr("ready") : tr("connectingNetwork")}
+                    </span>
+                    {snap.ready && <span className="metric-pill">{activeLineLabel}</span>}
+                    {snap.ready && snap.rtt_ms > 0 && (
+                      <span className={`metric-pill latency ${latencyLabel(snap.rtt_ms)}`}>{snap.rtt_ms} ms</span>
+                    )}
+                  </div>
+                  <p className="credential-kicker">{tr("shareCredentials")}</p>
+                </div>
+                <div className="credential-panel compact">
+                  <div className="credential-summary">
+                    <div className="credential-box">
+                      <p className="label">{tr("tempPassword")}</p>
+                      <div className="password-row">
+                        <strong>{hidePassword ? "• • • • • •" : snap.formatted_password}</strong>
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className={`copy-chip tiny ${copied === "password" ? "copied" : ""}`}
+                            onClick={() => copy("password", snap.temp_password)}
+                          >
+                            {copied === "password" ? "✓" : tr("copyPassword")}
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => setHidePassword((v) => !v)}
+                            aria-label="Toggle password"
+                          >
+                            {hidePassword ? "○" : "●"}
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() =>
+                              run(async () => {
+                                if (isTauri()) {
+                                  const next = await invoke<Snapshot>("refresh_password");
+                                  setSnap(next);
+                                } else {
+                                  setSnap({ ...snap, formatted_password: "K 3 M 8 Q 4", temp_password: "K3M8Q4" });
+                                }
+                              })
+                            }
+                            title={tr("refreshPassword")}
+                          >
+                            ↻
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`copy-all compact ${copied === "both" ? "copied" : ""}`}
+                      onClick={copyBoth}
+                    >
+                      {copied === "both" ? tr("copied") : tr("copyBoth")}
+                    </button>
+                  </div>
+                  <label className="custom-password inline">
+                    <span>{tr("customPassword")}</span>
+                    <div className="custom-password-row">
+                      <input
+                        value={customPassword}
+                        onChange={(e) => setCustomPassword(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
+                        placeholder={tr("passwordHint")}
+                        maxLength={16}
+                        spellCheck={false}
+                        onKeyDown={(e) => e.key === "Enter" && saveCustomPassword()}
+                        onBlur={() => {
+                          if (customPassword && customPassword !== snap.temp_password) saveCustomPassword();
+                        }}
+                      />
+                      <button type="button" className="ghost save-password" onClick={saveCustomPassword}>
+                        {tr("savePassword")}
+                      </button>
+                    </div>
+                  </label>
                 </div>
               </div>
-              <PlatformBadge os={snap.os} label={osLabel(locale, snap.os)} />
-            </div>
-            <div className="id-row">
-              <h2>{snap.formatted_id}</h2>
-              <button
-                type="button"
-                className={`copy-chip ${copied === "ID" ? "copied" : ""}`}
-                onClick={() => copy("ID", snap.formatted_id)}
-              >
-                {copied === "ID" ? tr("copied") : tr("copyId")}
-              </button>
-            </div>
-            <div className="device-metrics">
-              <span className={`metric-pill ${snap.ready ? "ready" : "offline"}`}>
-                <span className="dot" />
-                {snap.ready ? tr("ready") : tr("connectingNetwork")}
-              </span>
-              {snap.ready && (
-                <span className="metric-pill">
-                  {snap.settings.signaling_line === "auto"
-                    ? snap.active_line === "2"
-                      ? tr("line2")
-                      : tr("line1")
-                    : snap.settings.signaling_line === "2"
-                      ? tr("line2")
-                      : tr("line1")}
-                </span>
-              )}
-              {snap.ready && snap.rtt_ms > 0 && (
-                <span className={`metric-pill latency ${latencyLabel(snap.rtt_ms)}`}>{snap.rtt_ms} ms</span>
-              )}
-            </div>
-            <p className="credential-kicker">{tr("shareCredentials")}</p>
-            <div className="credential-panel">
-              <p className="label">{tr("tempPassword")}</p>
-              <div className="password-row">
-                <strong>{hidePassword ? "• • • • • •" : snap.formatted_password}</strong>
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className={`copy-chip tiny ${copied === "password" ? "copied" : ""}`}
-                    onClick={() => copy("password", snap.temp_password)}
-                  >
-                    {copied === "password" ? "✓" : tr("copyPassword")}
-                  </button>
-                  <button type="button" className="icon-btn" onClick={() => setHidePassword((v) => !v)} aria-label="Toggle password">
-                    {hidePassword ? "○" : "●"}
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    onClick={() =>
-                      run(async () => {
-                        if (isTauri()) {
-                          const next = await invoke<Snapshot>("refresh_password");
-                          setSnap(next);
-                        } else {
-                          setSnap({ ...snap, formatted_password: "K 3 M 8 Q 4", temp_password: "K3M8Q4" });
-                        }
-                      })
-                    }
-                    title={tr("refreshPassword")}
-                  >
-                    ↻
-                  </button>
-                </div>
-              </div>
-              <label className="custom-password">
-                <span>{tr("customPassword")}</span>
-                <div className="custom-password-row">
+            </section>
+
+            <aside className="home-side">
+              <section className="card connect-card">
+                <p className="eyebrow">{tr("quickConnect")}</p>
+                <p className="label connect-label">{tr("connectTo")}</p>
+                <div className="connect-row">
                   <input
-                    value={customPassword}
-                    onChange={(e) => setCustomPassword(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
-                    placeholder={tr("passwordHint")}
-                    maxLength={16}
-                    spellCheck={false}
-                    onKeyDown={(e) => e.key === "Enter" && saveCustomPassword()}
-                    onBlur={() => {
-                      if (customPassword && customPassword !== snap.temp_password) saveCustomPassword();
-                    }}
+                    value={connectId}
+                    onChange={(e) => setConnectId(formatIdInput(e.target.value))}
+                    placeholder={tr("enterId")}
+                    inputMode="numeric"
+                    onKeyDown={(e) => e.key === "Enter" && startConnect()}
                   />
-                  <button type="button" className="ghost save-password" onClick={saveCustomPassword}>
-                    {tr("savePassword")}
+                  <button className="primary" onClick={startConnect}>
+                    {tr("connect")}
                   </button>
                 </div>
-              </label>
-              <button
-                type="button"
-                className={`copy-all ${copied === "both" ? "copied" : ""}`}
-                onClick={copyBoth}
-              >
-                {copied === "both" ? tr("copied") : tr("copyBoth")}
-              </button>
-            </div>
+                {error && <p className="error">{error}</p>}
+              </section>
+
+              <section className="card network-card">
+                <p className="eyebrow">{tr("connection")}</p>
+                <div className="network-stats">
+                  <div className="network-stat">
+                    <span>{tr("networkStatus")}</span>
+                    <strong>{snap.ready ? tr("online") : tr("offline")}</strong>
+                  </div>
+                  <div className="network-stat">
+                    <span>{tr("activeLine")}</span>
+                    <strong>{activeLineLabel}</strong>
+                  </div>
+                  <div className="network-stat">
+                    <span>{tr("signalLatency")}</span>
+                    <strong>{snap.rtt_ms > 0 ? `${snap.rtt_ms} ms` : "—"}</strong>
+                  </div>
+                </div>
+              </section>
+            </aside>
           </section>
 
-          <section className="card connect-card">
-            <p className="eyebrow">{tr("quickConnect")}</p>
-            <p className="label connect-label">{tr("connectTo")}</p>
-            <div className="connect-row">
-              <input
-                value={connectId}
-                onChange={(e) => setConnectId(formatIdInput(e.target.value))}
-                placeholder={tr("enterId")}
-                inputMode="numeric"
-                onKeyDown={(e) => e.key === "Enter" && startConnect()}
-              />
-              <button className="primary" onClick={startConnect}>
-                {tr("connect")}
-              </button>
-            </div>
-            {error && <p className="error">{error}</p>}
-          </section>
+          {(snap.nearby?.length > 0 || snap.recents.length > 0) && (
+            <section className="home-lists">
+              {snap.nearby && snap.nearby.length > 0 && (
+                <section className="recents card">
+                  <p className="label">{tr("nearby")}</p>
+                  {snap.nearby.map((item) => (
+                    <DeviceListItem
+                      key={item.id}
+                      locale={locale}
+                      name={item.name}
+                      os={item.os}
+                      deviceId={item.id}
+                      trailing={<span className="dot ready" />}
+                      onClick={() => {
+                        setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
+                        setPasswordStep(true);
+                      }}
+                    />
+                  ))}
+                </section>
+              )}
 
-          {snap.nearby && snap.nearby.length > 0 && (
-            <section className="recents">
-              <p className="label">{tr("nearby")}</p>
-              {snap.nearby.map((item) => (
-                <DeviceListItem
-                  key={item.id}
-                  locale={locale}
-                  name={item.name}
-                  os={item.os}
-                  deviceId={item.id}
-                  trailing={<span className="dot ready" />}
-                  onClick={() => {
-                    setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
-                    setPasswordStep(true);
-                  }}
-                />
-              ))}
+              {snap.recents.length > 0 && (
+                <section className="recents card">
+                  <p className="label">{tr("recent")}</p>
+                  {snap.recents.map((item) => (
+                    <DeviceListItem
+                      key={item.id}
+                      locale={locale}
+                      name={item.name}
+                      os={item.os}
+                      deviceId={item.id}
+                      favorite={item.favorite}
+                      trailing={<span className="chevron">→</span>}
+                      onClick={() => {
+                        setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
+                        setPasswordStep(true);
+                      }}
+                    />
+                  ))}
+                </section>
+              )}
             </section>
           )}
 
-          {snap.recents.length > 0 && (
-            <section className="recents">
-              <p className="label">{tr("recent")}</p>
-              {snap.recents.map((item) => (
-                <DeviceListItem
-                  key={item.id}
-                  locale={locale}
-                  name={item.name}
-                  os={item.os}
-                  deviceId={item.id}
-                  favorite={item.favorite}
-                  trailing={<span className="chevron">→</span>}
-                  onClick={() => {
-                    setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
-                    setPasswordStep(true);
-                  }}
-                />
-              ))}
-            </section>
-          )}
-
-          <footer>RemoteX v0.2.8</footer>
+          <footer>RemoteX v2.0.0</footer>
         </main>
       )}
 
@@ -857,6 +947,11 @@ export default function App() {
             })
           }
         />
+      )}
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
       )}
     </div>
   );
@@ -971,24 +1066,35 @@ function platformKind(os: string): "macos" | "windows" | "unknown" {
   return "unknown";
 }
 
+function OsGlyph({ os, className }: { os: string; className?: string }) {
+  const kind = platformKind(os);
+  if (kind === "macos") {
+    return (
+      <svg viewBox="0 0 24 24" className={className} aria-hidden>
+        <path d="M16.67 12.46c-.03-3 2.45-4.43 2.56-4.5-1.4-2.03-3.58-2.3-4.34-2.33-1.85-.19-3.61 1.09-4.55 1.09-.94 0-2.39-1.06-3.93-1.03-2.02.03-3.89 1.18-4.93 2.98-2.1 3.64-.54 9.02 1.51 11.98 1 1.45 2.2 3.08 3.77 3.02 1.51-.06 2.08-.98 3.9-.98 1.82 0 2.33.98 3.94.95 1.63-.03 2.66-1.48 3.66-2.94 1.15-1.68 1.43-3.3 1.46-3.39-.04-.02-2.75-1.06-2.78-4.15zM14.34 4.08c.84-1.02 1.41-2.43 1.25-3.84-1.21.05-2.67.81-3.54 1.83-.78.9-1.46 2.34-1.28 3.72 1.35.1 2.73-.68 3.57-1.71z" />
+      </svg>
+    );
+  }
+  if (kind === "windows") {
+    return (
+      <svg viewBox="0 0 24 24" className={className} aria-hidden>
+        <path d="M3 12.5V3.5l8 1.2v7.8H3zm9 0V4.3l9 1.3v7.9H12zM3 20.5v-7.8h8v9L3 20.5zm9-.9V13h9v8.3l-9-1.7z" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <rect x="4" y="5" width="16" height="11" rx="1.5" />
+      <path d="M8 19h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function PlatformBadge({ os, label }: { os: string; label: string }) {
   const kind = platformKind(os);
   return (
     <div className={`platform-badge ${kind}`} aria-label={label}>
-      {kind === "macos" ? (
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <path d="M16.365 1.43c0 1.14-.413 2.193-1.232 3.014-.855.855-1.902 1.275-3.028 1.197-.14-1.098.402-2.248 1.213-3.07.855-.88 2.022-1.41 3.047-1.141zM20.88 17.203c-.747 1.626-1.109 2.358-2.072 3.803-1.342 1.983-3.232 4.458-5.586 4.474-2.088.015-2.626-1.357-5.456-1.357-2.83 0-3.431 1.327-5.47 1.372-2.187.045-3.851-2.276-5.193-4.254C-.55 18.853-.972 13.212 2.36 10.21c1.657-1.534 3.817-2.44 6.005-2.466 2.358-.03 3.643 1.327 5.47 1.327 1.827 0 2.947-1.327 5.564-1.302 2.006.03 3.676 1.089 5.01 2.465-4.403 2.427-3.692 8.744.471 10.969z" />
-        </svg>
-      ) : kind === "windows" ? (
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <path d="M3 12.5V3.5l8 1.2v7.8H3zm9 0V4.3l9 1.3v7.9H12zM3 20.5v-7.8h8v9L3 20.5zm9-.9V13h9v8.3l-9-1.7z" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <rect x="4" y="5" width="16" height="11" rx="1.5" />
-          <path d="M8 19h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      )}
+      <OsGlyph os={os} className="os-glyph" />
     </div>
   );
 }
@@ -1227,18 +1333,12 @@ function Settings({
                   label={tr("allowClipboard")}
                   hint={tr("allowClipboardHint")}
                   checked={snap.settings.allow_clipboard}
-                  soon
-                  soonLabel={tr("comingSoon")}
-                  disabled
                   onChange={(v) => onSettings({ allow_clipboard: v })}
                 />
                 <SettingToggle
                   label={tr("allowFileTransfer")}
                   hint={tr("allowFileTransferHint")}
                   checked={snap.settings.allow_file_transfer}
-                  soon
-                  soonLabel={tr("comingSoon")}
-                  disabled
                   onChange={(v) => onSettings({ allow_file_transfer: v })}
                 />
                 <SettingToggle
@@ -1290,7 +1390,7 @@ function Settings({
               <h2>RemoteX</h2>
               <p>{tr("aboutTagline")}</p>
               <p className="muted">{tr("aboutNote")}</p>
-              <p className="about-version">v0.2.8 · macOS / Windows</p>
+              <p className="about-version">v2.0.0 · macOS / Windows</p>
               <div className="about-features">
                 <p className="eyebrow">{tr("aboutFeaturesTitle")}</p>
                 <ul>
@@ -1370,6 +1470,17 @@ function PermissionsPanel({
   const tr = (key: MessageKey) => t(locale, key);
   const next = perms ? nextPermKind(perms) : null;
   const done = perms ? grantedPermCount(perms) : 0;
+  const [busyKind, setBusyKind] = useState<PermKind | null>(null);
+
+  const runGuide = async (kind: PermKind) => {
+    setBusyKind(kind);
+    try {
+      await guidePermission(kind, () => onRefresh());
+    } finally {
+      setBusyKind(null);
+      onRefresh();
+    }
+  };
 
   return (
     <section className="card permissions">
@@ -1393,9 +1504,9 @@ function PermissionsPanel({
               <button
                 type="button"
                 className="primary perm-wizard-cta"
-                onClick={() => void openPermKind(next).then(onRefresh)}
+                onClick={() => void runGuide(next)}
               >
-                {tr("permOpenNow")}
+                {busyKind === next ? tr("permChecking") : tr("permGuideSmart")}
               </button>
             </>
           )}
@@ -1414,6 +1525,13 @@ function PermissionsPanel({
           actions={
             item.kind === "screen_recording" ? (
               <>
+                <button
+                  type="button"
+                  className="ghost perm-action"
+                  onClick={() => void runGuide(item.kind)}
+                >
+                  {busyKind === item.kind ? tr("permChecking") : tr("permGuideSmart")}
+                </button>
                 <button type="button" className="ghost perm-action" onClick={() => isTauri() && void invoke("request_screen_recording")}>
                   {tr("permRequestScreen")}
                 </button>
@@ -1422,9 +1540,18 @@ function PermissionsPanel({
                 </button>
               </>
             ) : (
-              <button type="button" className="ghost perm-action" onClick={() => void openPermKind(item.kind).then(onRefresh)}>
-                {tr("permOpen")}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="ghost perm-action"
+                  onClick={() => void runGuide(item.kind)}
+                >
+                  {busyKind === item.kind ? tr("permChecking") : tr("permGuideSmart")}
+                </button>
+                <button type="button" className="ghost perm-action" onClick={() => void openPermKind(item.kind).then(onRefresh)}>
+                  {tr("permOpen")}
+                </button>
+              </>
             )
           }
         />
@@ -1733,7 +1860,7 @@ function ConnectPasswordModal({
           <p className="connect-modal-kicker">{tr("connectVerify")}</p>
         </div>
         <div className="connect-device-card">
-          <span className="connect-device-icon" aria-hidden>▣</span>
+          <span className="connect-device-icon" aria-hidden><OsGlyph os="unknown" className="os-glyph" /></span>
           <div>
             <p className="connect-device-label">{tr("connectTo")}</p>
             <h3>{deviceId}</h3>
@@ -1807,7 +1934,7 @@ function ConnectFlowOverlay({
         <div className="connect-flow-orbit">
           <div className="connect-node local">
             <span className="connect-node-ring" aria-hidden />
-            <span className="connect-node-icon">⌘</span>
+            <span className="connect-node-icon"><OsGlyph os="macos" className="os-glyph" /></span>
             <span className="connect-node-label">{tr("you")}</span>
           </div>
           <div className="connect-link-track">
@@ -1817,7 +1944,7 @@ function ConnectFlowOverlay({
           </div>
           <div className="connect-node remote">
             <span className="connect-node-ring" aria-hidden />
-            <span className="connect-node-icon">▣</span>
+            <span className="connect-node-icon"><OsGlyph os="unknown" className="os-glyph" /></span>
             <span className="connect-node-label">{peerName}</span>
           </div>
         </div>
@@ -1876,7 +2003,7 @@ function IncomingConnectModal({
         <p className="connect-modal-kicker">{tr("incomingSecure")}</p>
         <h2>{tr("incomingTitle")}</h2>
         <div className="connect-device-card incoming-device">
-          <span className="connect-device-icon">{fromOs === "macos" ? "⌘" : "▣"}</span>
+          <span className="connect-device-icon"><OsGlyph os={fromOs} className="os-glyph" /></span>
           <div>
             <p className="connect-device-label">{tr("incomingFrom")}</p>
             <h3>{fromName}</h3>

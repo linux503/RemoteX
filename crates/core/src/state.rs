@@ -1,20 +1,26 @@
 use protocol::{format_device_id, ClientMsg, DeviceInfo, OsKind, ServerMsg};
 use rand::Rng;
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch, Mutex};
 
+use crate::clipboard;
 use crate::identity::{data_dir, format_password, DeviceIdentity};
 use crate::lan::{self, LanDiscovery, NearbyDevice};
-use crate::media::{self, MediaHandle, RemoteFrame, SessionRole};
+use crate::media::{self, MediaHandle, RemoteFrame, SessionRole, SignalSideEffect};
 use crate::password::{AuthOutcome, PasswordVault};
 use crate::recents::RecentsStore;
 use crate::settings::{self, AppSettings, LinePick};
 use crate::signaling::SignalingClient;
+use crate::transfer::{self, TransferComplete, TransferHub};
 use crate::Result;
 use input::InputEvent;
+
+struct ClipboardSyncState {
+    suppress_until: Option<Instant>,
+}
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -79,6 +85,7 @@ pub enum AppEvent {
     Snapshot(Snapshot),
     Frame(RemoteFrame),
     Toast(String),
+    FileReceived(TransferComplete),
 }
 
 pub struct AppState {
@@ -112,6 +119,10 @@ pub struct AppState {
     line2_rtt_ms: u32,
     pending_connect: Option<ClientMsg>,
     connect_tried_fallback: bool,
+    events: mpsc::Sender<AppEvent>,
+    transfer_hub: TransferHub,
+    clipboard_sync: Arc<Mutex<ClipboardSyncState>>,
+    clipboard_stop: Option<watch::Sender<bool>>,
 }
 
 impl AppState {
@@ -179,6 +190,12 @@ impl AppState {
             line2_rtt_ms: pick.line2_rtt_ms,
             pending_connect: None,
             connect_tried_fallback: false,
+            events: evt_tx.clone(),
+            transfer_hub: TransferHub::default(),
+            clipboard_sync: Arc::new(Mutex::new(ClipboardSyncState {
+                suppress_until: None,
+            })),
+            clipboard_stop: None,
         }));
 
         tokio::spawn(async move {
@@ -225,9 +242,10 @@ impl AppState {
         tokio::spawn(async move {
             while let Some(msg) = in_rx.recv().await {
                 let skip_snap = match &msg {
-                    ServerMsg::Signal { data, .. } => {
-                        data.get("kind").and_then(|v| v.as_str()) == Some("frame")
-                    }
+                    ServerMsg::Signal { data, .. } => matches!(
+                        data.get("kind").and_then(|v| v.as_str()),
+                        Some("frame") | Some("file_chunk")
+                    ),
                     _ => false,
                 };
                 let mut guard = loop_state.lock().await;
@@ -318,7 +336,7 @@ impl AppState {
             self.line2_rtt_ms = 0;
         }
         let url_changed = settings.signaling_url != self.settings.signaling_url;
-        self.settings = settings;
+        self.settings = settings.clone();
         let _ = self.quality_tx.send(self.settings.quality.clone());
         if url_changed {
             self.ready = false;
@@ -327,6 +345,9 @@ impl AppState {
                 .send(self.settings.signaling_url.clone());
         }
         self.settings.save(&self.dir)?;
+        if self.phase == SessionPhase::Connected {
+            self.start_clipboard_sync();
+        }
         Ok(())
     }
 
@@ -510,7 +531,86 @@ impl AppState {
         Ok(())
     }
 
+    pub async fn send_file(&self, path: &Path) -> Result<()> {
+        if !self.settings.allow_file_transfer {
+            return Err(crate::Error::Message("File transfer is disabled".into()));
+        }
+        if self.phase != SessionPhase::Connected {
+            return Err(crate::Error::Message("No active session".into()));
+        }
+        let Some(session) = &self.session else {
+            return Err(crate::Error::Message("No active session".into()));
+        };
+        transfer::send_file(
+            &session.session_id,
+            path,
+            &self.outgoing,
+            self.peer_outgoing.as_ref(),
+        )
+        .await
+    }
+
+    fn stop_clipboard_sync(&mut self) {
+        if let Some(tx) = self.clipboard_stop.take() {
+            let _ = tx.send(true);
+        }
+    }
+
+    fn start_clipboard_sync(&mut self) {
+        self.stop_clipboard_sync();
+        if !self.settings.allow_clipboard {
+            return;
+        }
+        let Some(session) = self.session.clone() else {
+            return;
+        };
+        let (stop_tx, mut stop_rx) = watch::channel(false);
+        self.clipboard_stop = Some(stop_tx);
+        let outgoing = self.outgoing.clone();
+        let peer = self.peer_outgoing.clone();
+        let sync = self.clipboard_sync.clone();
+        tokio::spawn(async move {
+            let mut last_sent = String::new();
+            let mut interval = tokio::time::interval(Duration::from_millis(650));
+            loop {
+                tokio::select! {
+                    res = stop_rx.changed() => {
+                        if res.is_err() || *stop_rx.borrow() {
+                            break;
+                        }
+                    }
+                    _ = interval.tick() => {
+                        let Some(text) = clipboard::read_text() else { continue };
+                        let suppress = {
+                            let guard = sync.lock().await;
+                            guard
+                                .suppress_until
+                                .map(|t| Instant::now() < t)
+                                .unwrap_or(false)
+                        };
+                        if suppress {
+                            last_sent = text;
+                            continue;
+                        }
+                        if text != last_sent && text.len() <= 512_000 {
+                            media::send_clipboard_signal(
+                                &session.session_id,
+                                &text,
+                                &outgoing,
+                                peer.as_ref(),
+                            )
+                            .await;
+                            last_sent = text;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     fn stop_media(&mut self) {
+        self.stop_clipboard_sync();
+        self.transfer_hub.reset();
         if let Some(media) = self.media.take() {
             media.stop();
         }
@@ -536,6 +636,7 @@ impl AppState {
                 Some(self.frame_tx.clone()),
             ));
         }
+        self.start_clipboard_sync();
     }
 
     pub fn toggle_favorite(&mut self, id: &str) -> Result<()> {
@@ -695,13 +796,31 @@ impl AppState {
                 let Some(role) = self.session_role else {
                     return;
                 };
-                media::handle_signal(
+                match media::handle_signal(
                     &data,
                     role,
                     &self.frame_tx,
                     &self.host_screen,
                     &self.quality_tx,
-                );
+                    self.settings.allow_clipboard,
+                    self.settings.allow_file_transfer,
+                    &mut self.transfer_hub,
+                ) {
+                    Ok(Some(SignalSideEffect::ClipboardSynced(_))) => {
+                        let mut sync = self.clipboard_sync.lock().await;
+                        sync.suppress_until = Some(Instant::now() + Duration::from_secs(2));
+                    }
+                    Ok(Some(SignalSideEffect::FileReceived(done))) => {
+                        let _ = self
+                            .events
+                            .send(AppEvent::FileReceived(done))
+                            .await;
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        self.last_error = Some(e.to_string());
+                    }
+                }
                 if data.get("kind").and_then(|v| v.as_str()) == Some("quality") {
                     if let Some(value) = data.get("value").and_then(|v| v.as_str()) {
                         if let Some(session) = &mut self.session {

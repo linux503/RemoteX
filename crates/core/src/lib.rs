@@ -1,3 +1,4 @@
+pub mod clipboard;
 pub mod identity;
 pub mod lan;
 pub mod media;
@@ -6,17 +7,20 @@ pub mod recents;
 pub mod settings;
 pub mod signaling;
 pub mod state;
+pub mod transfer;
 
 pub use identity::{DeviceIdentity, format_password};
 pub use lan::NearbyDevice;
 pub use media::RemoteFrame;
 pub use media::SessionRole;
+pub use media::send_clipboard_signal;
 pub use media::send_input_signal;
 pub use password::PasswordVault;
 pub use recents::{RecentDevice, RecentsStore};
 pub use settings::AppSettings;
 pub use signaling::SignalingClient;
 pub use state::{AppEvent, AppState, SessionPhase, Snapshot};
+pub use transfer::TransferComplete;
 
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;

@@ -173,6 +173,31 @@ async fn set_session_quality(
 }
 
 #[tauri::command]
+async fn session_pick_send_file(state: State<'_, SharedState>) -> Result<(), CommandError> {
+    let path = tauri::async_runtime::spawn_blocking(|| rfd::FileDialog::new().pick_file())
+        .await
+        .map_err(|e| CommandError::from(e.to_string()))?;
+    let Some(path) = path else {
+        return Ok(());
+    };
+    state.lock().await.send_file(&path).await?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn session_send_file(
+    state: State<'_, SharedState>,
+    path: String,
+) -> Result<(), CommandError> {
+    state
+        .lock()
+        .await
+        .send_file(std::path::Path::new(&path))
+        .await?;
+    Ok(())
+}
+
+#[tauri::command]
 fn permissions_status() -> remotex_permissions::PermissionsSnapshot {
     remotex_permissions::PermissionsSnapshot::check()
 }
@@ -251,6 +276,9 @@ pub fn run() {
                         }
                         AppEvent::Toast(msg) => {
                             let _ = event_handle.emit("toast", msg);
+                        }
+                        AppEvent::FileReceived(done) => {
+                            let _ = event_handle.emit("file-received", done);
                         }
                     }
                 }
@@ -332,6 +360,8 @@ pub fn run() {
             open_permission_settings,
             session_input,
             set_session_quality,
+            session_pick_send_file,
+            session_send_file,
             latest_frame
         ])
         .run(tauri::generate_context!())

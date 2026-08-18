@@ -1,5 +1,7 @@
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use capture::{capture_primary_jpeg, quality_params, CaptureError};
+use crate::clipboard;
+use crate::transfer::{TransferComplete, TransferHub};
 use input::{inject, InputEvent};
 use protocol::ClientMsg;
 use serde::Serialize;
@@ -128,17 +130,20 @@ pub fn handle_signal(
     frame_tx: &watch::Sender<Option<RemoteFrame>>,
     host_screen: &Arc<Mutex<(u32, u32)>>,
     quality_tx: &watch::Sender<String>,
-) {
+    allow_clipboard: bool,
+    allow_file_transfer: bool,
+    transfer_hub: &mut TransferHub,
+) -> crate::Result<Option<SignalSideEffect>> {
     match data.get("kind").and_then(Value::as_str) {
         Some("frame") if matches!(role, SessionRole::Viewer) => {
             let Some(width) = data.get("width").and_then(Value::as_u64) else {
-                return;
+                return Ok(None);
             };
             let Some(height) = data.get("height").and_then(Value::as_u64) else {
-                return;
+                return Ok(None);
             };
             let Some(data) = data.get("data").and_then(Value::as_str) else {
-                return;
+                return Ok(None);
             };
             let _ = frame_tx.send(Some(RemoteFrame {
                 width: width as u32,
@@ -155,7 +160,7 @@ pub fn handle_signal(
         }
         Some("input") if matches!(role, SessionRole::Host) => {
             let Some(event_value) = data.get("event") else {
-                return;
+                return Ok(None);
             };
             if let Ok(event) = serde_json::from_value::<InputEvent>(event_value.clone()) {
                 let screen = host_screen
@@ -165,8 +170,44 @@ pub fn handle_signal(
                 inject(&event, screen);
             }
         }
+        Some("clipboard") if allow_clipboard => {
+            let Some(text) = data.get("text").and_then(Value::as_str) else {
+                return Ok(None);
+            };
+            if text.len() > 512_000 {
+                return Ok(None);
+            }
+            if clipboard::write_text(text).is_ok() {
+                return Ok(Some(SignalSideEffect::ClipboardSynced(text.to_string())));
+            }
+        }
+        Some("file_begin") | Some("file_chunk") | Some("file_end") if allow_file_transfer => {
+            if let Some(done) = transfer_hub.handle(data, true)? {
+                return Ok(Some(SignalSideEffect::FileReceived(done)));
+            }
+        }
         _ => {}
     }
+    Ok(None)
+}
+
+#[derive(Debug, Clone)]
+pub enum SignalSideEffect {
+    ClipboardSynced(String),
+    FileReceived(TransferComplete),
+}
+
+pub async fn send_clipboard_signal(
+    session_id: &str,
+    text: &str,
+    outgoing: &mpsc::Sender<ClientMsg>,
+    peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+) {
+    let payload = json!({
+        "kind": "clipboard",
+        "text": text,
+    });
+    send_signal(session_id, payload, outgoing, peer_outgoing).await;
 }
 
 pub async fn send_quality_signal(

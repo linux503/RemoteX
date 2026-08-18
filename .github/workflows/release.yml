@@ -42,11 +42,11 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
-            ## RemoteX v0.2.8
-            - Auto-picks the fastest public line (Line 1 / Line 2)
-            - Falls back to the other line if a device is not found
-            - Polished home screen and richer settings panels
-            - Connection status, line cards with latency, and quality presets
+            ## RemoteX v2.0.0
+            - New macOS-style home screen and matching website design
+            - Clipboard sync and file transfer during sessions
+            - Smart macOS permission guide that opens the right panel and checks progress
+            - Auto line selection with fallback across Line 1 and Line 2
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
