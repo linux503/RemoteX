@@ -42,10 +42,11 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
-            ## RemoteX v0.2.7
-            - Line 1 and Line 2 are both public internet hubs
-            - Line 2 is the Singapore server
-            - Both computers must pick the same line
+            ## RemoteX v0.2.8
+            - Auto-picks the fastest public line (Line 1 / Line 2)
+            - Falls back to the other line if a device is not found
+            - Polished home screen and richer settings panels
+            - Connection status, line cards with latency, and quality presets
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

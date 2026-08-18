@@ -101,7 +101,7 @@ async fn save_settings(
     settings: AppSettings,
 ) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
-    guard.update_settings(settings)?;
+    guard.update_settings(settings).await?;
     emit_snapshot(&app, &guard).await;
     Ok(())
 }

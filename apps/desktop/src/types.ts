@@ -28,6 +28,7 @@ export interface RecentDevice {
 export interface AppSettings {
   signaling_url: string;
   signaling_line: string;
+  settings_rev: number;
   language: string;
   theme: string;
   start_at_login: boolean;
@@ -85,11 +86,15 @@ export interface Snapshot {
   has_permanent_password: boolean;
   last_error: string | null;
   is_host: boolean;
+  active_line: string;
+  line1_rtt_ms: number;
+  line2_rtt_ms: number;
 }
 
 export const defaultSettings = (): AppSettings => ({
   signaling_url: "ws://127.0.0.1:7829/ws",
-  signaling_line: "1",
+  signaling_line: "auto",
+  settings_rev: 1,
   language: "system",
   theme: "system",
   start_at_login: false,
@@ -143,6 +148,9 @@ export const mockSnapshot = (): Snapshot => ({
   has_permanent_password: false,
   last_error: null,
   is_host: false,
+  active_line: "1",
+  line1_rtt_ms: 18,
+  line2_rtt_ms: 42,
 });
 
 export function previewSnapshot(scene: string | null): Snapshot {

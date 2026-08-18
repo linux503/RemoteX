@@ -11,7 +11,7 @@ use crate::lan::{self, LanDiscovery, NearbyDevice};
 use crate::media::{self, MediaHandle, RemoteFrame, SessionRole};
 use crate::password::{AuthOutcome, PasswordVault};
 use crate::recents::RecentsStore;
-use crate::settings::AppSettings;
+use crate::settings::{self, AppSettings, LinePick};
 use crate::signaling::SignalingClient;
 use crate::Result;
 use input::InputEvent;
@@ -48,6 +48,9 @@ pub struct Snapshot {
     pub has_permanent_password: bool,
     pub last_error: Option<String>,
     pub is_host: bool,
+    pub active_line: String,
+    pub line1_rtt_ms: u32,
+    pub line2_rtt_ms: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -104,6 +107,11 @@ pub struct AppState {
     frame_rx: watch::Receiver<Option<RemoteFrame>>,
     quality_tx: watch::Sender<String>,
     signaling_url_tx: watch::Sender<String>,
+    active_line: String,
+    line1_rtt_ms: u32,
+    line2_rtt_ms: u32,
+    pending_connect: Option<ClientMsg>,
+    connect_tried_fallback: bool,
 }
 
 impl AppState {
@@ -111,9 +119,20 @@ impl AppState {
         let dir = data_dir()?;
         std::fs::create_dir_all(&dir)?;
         let identity = DeviceIdentity::load_or_create(&dir)?;
-        let settings = AppSettings::load(&dir)?;
+        let mut settings = AppSettings::load(&dir)?;
         let recents = RecentsStore::load(&dir)?;
         let passwords = PasswordVault::load(&dir).unwrap_or_else(|_| PasswordVault::new());
+        let pick = if settings.is_auto() {
+            settings::probe_best_line().await
+        } else {
+            LinePick {
+                line: settings.signaling_line.clone(),
+                url: settings.signaling_url.clone(),
+                line1_rtt_ms: 0,
+                line2_rtt_ms: 0,
+            }
+        };
+        settings.signaling_url = pick.url.clone();
 
         let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(8);
         let (prio_tx, prio_rx) = mpsc::channel::<ClientMsg>(64);
@@ -155,6 +174,11 @@ impl AppState {
             frame_rx: frame_rx.clone(),
             quality_tx: quality_tx.clone(),
             signaling_url_tx: signaling_url_tx.clone(),
+            active_line: pick.line.clone(),
+            line1_rtt_ms: pick.line1_rtt_ms,
+            line2_rtt_ms: pick.line2_rtt_ms,
+            pending_connect: None,
+            connect_tried_fallback: false,
         }));
 
         tokio::spawn(async move {
@@ -243,6 +267,9 @@ impl AppState {
             has_permanent_password: self.passwords.has_permanent(),
             last_error: self.last_error.clone(),
             is_host: self.session_role == Some(SessionRole::Host),
+            active_line: self.active_line.clone(),
+            line1_rtt_ms: self.line1_rtt_ms,
+            line2_rtt_ms: self.line2_rtt_ms,
         }
     }
 
@@ -277,8 +304,19 @@ impl AppState {
         self.passwords.save(&self.dir)
     }
 
-    pub fn update_settings(&mut self, mut settings: AppSettings) -> Result<()> {
+    pub async fn update_settings(&mut self, mut settings: AppSettings) -> Result<()> {
         settings.normalize();
+        if settings.is_auto() {
+            let pick = settings::probe_best_line().await;
+            settings.signaling_url = pick.url.clone();
+            self.active_line = pick.line;
+            self.line1_rtt_ms = pick.line1_rtt_ms;
+            self.line2_rtt_ms = pick.line2_rtt_ms;
+        } else {
+            self.active_line = settings.signaling_line.clone();
+            self.line1_rtt_ms = 0;
+            self.line2_rtt_ms = 0;
+        }
         let url_changed = settings.signaling_url != self.settings.signaling_url;
         self.settings = settings;
         let _ = self.quality_tx.send(self.settings.quality.clone());
@@ -321,6 +359,8 @@ impl AppState {
             from_name: self.identity.name.clone(),
             from_os: self.identity.os.clone(),
         };
+        self.pending_connect = Some(msg.clone());
+        self.connect_tried_fallback = false;
         if lan::is_own_hub(&url) {
             self.peer_outgoing = None;
             self.peer_priority = None;
@@ -401,6 +441,8 @@ impl AppState {
         }
         self.peer_outgoing = None;
         self.peer_priority = None;
+        self.pending_connect = None;
+        self.connect_tried_fallback = false;
         self.session = None;
         self.incoming = None;
         self.session_role = None;
@@ -554,6 +596,8 @@ impl AppState {
                 }
             }
             ServerMsg::Accepted { session_id, peer } => {
+                self.pending_connect = None;
+                self.connect_tried_fallback = false;
                 self.recents
                     .touch(peer.id.clone(), peer.name.clone(), os_label(&peer.os));
                 let _ = self.recents.save(&self.dir);
@@ -594,8 +638,22 @@ impl AppState {
                 self.last_error = Some(message);
             }
             ServerMsg::PeerOffline { .. } => {
+                if self.settings.is_auto()
+                    && !self.connect_tried_fallback
+                    && self.phase == SessionPhase::Connecting
+                {
+                    if let Some(msg) = self.pending_connect.clone() {
+                        self.connect_tried_fallback = true;
+                        let other = settings::other_line_url(&self.settings.signaling_url);
+                        self.active_line = settings::line_of_url(other).into();
+                        self.dial_peer_hub(other.to_string(), msg).await;
+                        return;
+                    }
+                }
                 self.stop_media();
                 self.session = None;
+                self.pending_connect = None;
+                self.connect_tried_fallback = false;
                 self.peer_outgoing = None;
                 self.peer_priority = None;
                 self.phase = SessionPhase::Idle;
