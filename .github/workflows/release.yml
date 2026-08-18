@@ -43,9 +43,9 @@ jobs:
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
             ## RemoteX ${{ github.ref_name }}
-            - Clearer session UI: hideable top session toolbar
-            - Simplified credentials card: temporary password only
-            - Card sizing/layout polish + updated website download links
+            - Home layout, color, and typography polish
+            - Settings: aligned sidebar, refined back button, segmented theme/options
+            - LAN-first connect, auto screen fit, and faster disconnect handling
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

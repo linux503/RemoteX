@@ -7,6 +7,7 @@ const en = {
   copyPassword: "Copy password",
   copyBoth: "Copy ID & password",
   copied: "Copied",
+  saved: "Saved",
   hideToolbar: "Hide",
   showToolbar: "Show",
   customPassword: "Custom password",
@@ -109,6 +110,18 @@ const en = {
   lineProbe: "{ms} ms",
   lineProbeOff: "Unreachable",
   lanHint: "This computer’s Wi-Fi address",
+  preferLan: "Prefer LAN",
+  preferLanHint: "If the other device is on the same Wi-Fi, connect directly over LAN first.",
+  screenFit: "Screen fit",
+  screenFitHint: "How the remote screen is shown after connecting",
+  fitAuto: "Auto fit",
+  fitFill: "Fill window",
+  fitOriginal: "Actual size",
+  captureResolution: "Capture resolution",
+  captureResolutionHint: "Auto matches this window. Higher uses more bandwidth.",
+  res720: "720p",
+  res1080: "1080p",
+  lanDirect: "LAN",
   connection: "Connection",
   networkStatus: "Network",
   signalLatency: "Latency",
@@ -116,7 +129,7 @@ const en = {
   shareCredentials: "Share these with the person connecting to you",
   quickConnect: "Quick connect",
   setGeneralSub: "Startup, language, and appearance",
-  setConnectionSub: "Lines, relay, and network quality",
+  setConnectionSub: "Lines, LAN, screen fit, and capture resolution",
   setSecuritySub: "Passwords, access control, and session rules",
   setDisplaySub: "Default picture quality and frame rate",
   startAtLoginHint: "Open RemoteX automatically when you sign in",
@@ -187,10 +200,13 @@ const en = {
   permWhyAccessibility: "Move the mouse and type on this Mac.",
   permWhyInput: "Capture keyboard input for remote control.",
   nearby: "Nearby on Wi-Fi",
+  emptyNearby: "No other devices on this Wi-Fi yet",
+  emptyRecent: "No recent connections",
   osMac: "macOS",
   osWindows: "Windows",
   peerNotFound: "Device not found on this Wi-Fi. Open RemoteX on the other computer first.",
   peerDeclined: "The other device declined",
+  peerDisconnected: "Remote device disconnected",
 };
 
 const zh: typeof en = {
@@ -200,6 +216,7 @@ const zh: typeof en = {
   copyPassword: "复制密码",
   copyBoth: "一键复制",
   copied: "已复制",
+  saved: "已保存",
   hideToolbar: "隐藏",
   showToolbar: "显示",
   customPassword: "自定义密码",
@@ -302,6 +319,18 @@ const zh: typeof en = {
   lineProbe: "{ms} ms",
   lineProbeOff: "不可达",
   lanHint: "本机 Wi-Fi 地址",
+  preferLan: "优先局域网",
+  preferLanHint: "同一 Wi-Fi 下发现对方后，默认走局域网直连。",
+  screenFit: "画面适配",
+  screenFitHint: "远程连接后，画面如何铺满这个窗口",
+  fitAuto: "自动适配",
+  fitFill: "铺满窗口",
+  fitOriginal: "原始大小",
+  captureResolution: "采集分辨率",
+  captureResolutionHint: "自动会按当前窗口大小采集。越高越清晰，也更占带宽。",
+  res720: "720p",
+  res1080: "1080p",
+  lanDirect: "局域网",
   connection: "连接",
   networkStatus: "网络",
   signalLatency: "延迟",
@@ -309,7 +338,7 @@ const zh: typeof en = {
   shareCredentials: "把下面信息发给要连你的人",
   quickConnect: "快速连接",
   setGeneralSub: "启动、语言与外观",
-  setConnectionSub: "线路、中继与网络质量",
+  setConnectionSub: "线路、局域网、画面适配与采集分辨率",
   setSecuritySub: "密码、访问控制与会话规则",
   setDisplaySub: "默认画质与帧率",
   startAtLoginHint: "登录系统后自动打开 RemoteX",
@@ -380,10 +409,13 @@ const zh: typeof en = {
   permWhyAccessibility: "远程移动鼠标和输入文字。",
   permWhyInput: "远程捕获键盘输入。",
   nearby: "附近 Wi-Fi 设备",
+  emptyNearby: "附近还没有其他设备",
+  emptyRecent: "暂无最近连接",
   osMac: "macOS",
   osWindows: "Windows",
   peerNotFound: "这个 Wi-Fi 里找不到该设备。请先在另一台电脑打开 RemoteX。",
   peerDeclined: "对方拒绝了连接",
+  peerDisconnected: "对方设备已断开",
 };
 
 const dict = { en, zh };
@@ -409,8 +441,8 @@ export function translateError(locale: Locale, message: string): string {
   if (message.includes("not found on this Wi-Fi") || message.includes("找不到该设备")) {
     return t(locale, "peerNotFound");
   }
-  if (message.toLowerCase().includes("declined") || message.includes("拒绝")) {
-    return t(locale, "peerDeclined");
+  if (message.toLowerCase().includes("disconnected") || message.includes("已断开")) {
+    return t(locale, "peerDisconnected");
   }
   if (message.includes("4–16") || message.includes("letters or numbers")) {
     return t(locale, "passwordInvalid");

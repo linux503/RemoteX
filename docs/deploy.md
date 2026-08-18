@@ -18,7 +18,8 @@
 - Ubuntu 24.04 x86_64（或同类 Linux）
 - 能出网（拉 GitHub、编 Rust）
 - 开放 TCP `7829`
-- 建议 2GB+ 内存（编译时需要；运行信令本身很轻）
+- 建议 2GB+ 内存（**编译**时需要；运行信令本身很轻）
+- 1GB 左右的机器不要在上面装 Rust / `cargo build`，会 OOM 或超时。在另一台机器编好静态包再拷上去。
 
 ## 2. 放行防火墙
 
@@ -47,6 +48,8 @@ source "$HOME/.cargo/env"
 
 ## 4. 拉取代码并编译信令
 
+在 **2GB+ 内存** 的机器上编译（可以是线路 1，或本机交叉编译），不要在 1GB 小鸡上现场 `cargo build`。
+
 ```bash
 source "$HOME/.cargo/env"
 if [ -d /opt/RemoteX/.git ]; then
@@ -56,8 +59,21 @@ else
   git clone --depth 1 https://github.com/linux503/RemoteX.git /opt/RemoteX
 fi
 cd /opt/RemoteX
-CARGO_TERM_COLOR=never cargo build -p signaling --release -j 1
-install -m 755 /opt/RemoteX/target/release/remotex-signaling /usr/local/bin/remotex-signaling
+# 给 CentOS 7/8 等旧 glibc 用 musl 静态包
+rustup target add x86_64-unknown-linux-musl
+apt-get install -y musl-tools
+CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
+  cargo build -p signaling --release --target x86_64-unknown-linux-musl -j 1
+# 同系统 Ubuntu 24 也可以直接：
+# cargo build -p signaling --release -j 1
+```
+
+拷到目标机并安装：
+
+```bash
+scp target/x86_64-unknown-linux-musl/release/remotex-signaling <SSH_USER>@<SERVER_IP>:/tmp/remotex-signaling
+ssh -p <SSH_PORT> <SSH_USER>@<SERVER_IP>
+install -m 755 /tmp/remotex-signaling /usr/local/bin/remotex-signaling
 ```
 
 ## 5. systemd 开机自启
@@ -98,14 +114,12 @@ curl -sS http://127.0.0.1:7829/health
 
 ## 7. 以后更新信令
 
+在编译机编好后拷过去，不要在低内存机器上现场编译：
+
 ```bash
+scp target/x86_64-unknown-linux-musl/release/remotex-signaling <SSH_USER>@<SERVER_IP>:/tmp/remotex-signaling
 ssh -p <SSH_PORT> <SSH_USER>@<SERVER_IP>
-source "$HOME/.cargo/env"
-git -C /opt/RemoteX fetch origin
-git -C /opt/RemoteX reset --hard origin/main
-cd /opt/RemoteX
-cargo build -p signaling --release -j 1
-install -m 755 target/release/remotex-signaling /usr/local/bin/remotex-signaling
+install -m 755 /tmp/remotex-signaling /usr/local/bin/remotex-signaling
 systemctl restart remotex-signaling
 curl -sS http://127.0.0.1:7829/health
 ```

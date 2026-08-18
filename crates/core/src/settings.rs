@@ -31,6 +31,12 @@ pub struct AppSettings {
     pub hardware_encode: bool,
     pub quality: String,
     pub fps: u32,
+    #[serde(default = "default_prefer_lan")]
+    pub prefer_lan: bool,
+    #[serde(default = "default_screen_fit")]
+    pub screen_fit: String,
+    #[serde(default = "default_resolution")]
+    pub resolution: String,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +67,9 @@ impl Default for AppSettings {
             hardware_encode: true,
             quality: "high".into(),
             fps: 60,
+            prefer_lan: true,
+            screen_fit: "auto".into(),
+            resolution: "auto".into(),
         };
         settings.normalize();
         settings
@@ -123,6 +132,17 @@ impl AppSettings {
         }
         if self.settings_rev < 1 {
             self.settings_rev = 1;
+        }
+        if !matches!(self.screen_fit.as_str(), "auto" | "fill" | "original") {
+            self.screen_fit = "auto".into();
+        }
+        if !matches!(self.resolution.as_str(), "auto" | "720p" | "1080p" | "original") {
+            self.resolution = "auto".into();
+        }
+        if self.fps < 15 {
+            self.fps = 30;
+        } else if self.fps > 120 {
+            self.fps = 120;
         }
     }
 }
@@ -212,6 +232,18 @@ async fn probe_rtt(ws_url: &str) -> Option<u32> {
 }
 
 fn default_signaling_line() -> String {
+    "auto".into()
+}
+
+fn default_prefer_lan() -> bool {
+    true
+}
+
+fn default_screen_fit() -> String {
+    "auto".into()
+}
+
+fn default_resolution() -> String {
     "auto".into()
 }
 

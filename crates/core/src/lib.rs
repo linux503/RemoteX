@@ -1,6 +1,7 @@
 pub mod clipboard;
 pub mod identity;
 pub mod lan;
+pub mod lock;
 pub mod media;
 pub mod password;
 pub mod recents;

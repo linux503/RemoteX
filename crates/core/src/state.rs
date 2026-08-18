@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, watch, Mutex};
 use crate::clipboard;
 use crate::identity::{data_dir, format_password, DeviceIdentity};
 use crate::lan::{self, LanDiscovery, NearbyDevice};
-use crate::media::{self, MediaHandle, RemoteFrame, SessionRole, SignalSideEffect};
+use crate::media::{self, CapturePrefs, MediaHandle, RemoteFrame, SessionRole, SignalSideEffect};
 use crate::password::{AuthOutcome, PasswordVault};
 use crate::recents::RecentsStore;
 use crate::settings::{self, AppSettings, LinePick};
@@ -103,7 +103,10 @@ pub struct AppState {
     incoming_tx: mpsc::Sender<ServerMsg>,
     peer_outgoing: Option<mpsc::Sender<ClientMsg>>,
     peer_priority: Option<mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<mpsc::Sender<ClientMsg>>,
+    lan_priority: Option<mpsc::Sender<ClientMsg>>,
     lan: Option<Arc<LanDiscovery>>,
+    capture_prefs: Arc<Mutex<CapturePrefs>>,
     last_error: Option<String>,
     heartbeat_sent: Option<Instant>,
     network_rtt_ms: u32,
@@ -119,6 +122,11 @@ pub struct AppState {
     line2_rtt_ms: u32,
     pending_connect: Option<ClientMsg>,
     connect_tried_fallback: bool,
+    pending_used_lan: bool,
+    connect_tried_public: bool,
+    peer_link_id: u64,
+    next_peer_link_id: u64,
+    last_peer_alive: Option<Instant>,
     events: mpsc::Sender<AppEvent>,
     transfer_hub: TransferHub,
     clipboard_sync: Arc<Mutex<ClipboardSyncState>>,
@@ -145,19 +153,23 @@ impl AppState {
         };
         settings.signaling_url = pick.url.clone();
 
-        let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(8);
-        let (prio_tx, prio_rx) = mpsc::channel::<ClientMsg>(64);
+        let (out_tx, out_rx) = mpsc::channel::<ClientMsg>(4);
+        let (prio_tx, prio_rx) = mpsc::channel::<ClientMsg>(128);
         let (in_tx, mut in_rx) = mpsc::channel::<ServerMsg>(64);
-        let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(32);
+        let (evt_tx, evt_rx) = mpsc::channel::<AppEvent>(64);
         let (frame_tx, frame_rx) = watch::channel(None::<RemoteFrame>);
         let (quality_tx, _quality_rx) = watch::channel(settings.quality.clone());
         let (signaling_url_tx, signaling_url_rx) = watch::channel(settings.signaling_url.clone());
+        let (lan_out_tx, lan_out_rx) = mpsc::channel::<ClientMsg>(32);
+        let (lan_prio_tx, lan_prio_rx) = mpsc::channel::<ClientMsg>(64);
 
         let register = ClientMsg::register(&DeviceInfo {
             id: identity.device_id.clone(),
             name: identity.name.clone(),
             os: identity.os.clone(),
         });
+        let lan_register = register.clone();
+        let lan_incoming = in_tx.clone();
 
         let state = Arc::new(Mutex::new(Self {
             dir,
@@ -174,7 +186,14 @@ impl AppState {
             incoming_tx: in_tx.clone(),
             peer_outgoing: None,
             peer_priority: None,
+            lan_outgoing: Some(lan_out_tx),
+            lan_priority: Some(lan_prio_tx),
             lan: None,
+            capture_prefs: Arc::new(Mutex::new(CapturePrefs {
+                resolution: settings.resolution.clone(),
+                fps: settings.fps,
+                viewport_w: 1920,
+            })),
             last_error: None,
             heartbeat_sent: None,
             network_rtt_ms: 0,
@@ -190,6 +209,11 @@ impl AppState {
             line2_rtt_ms: pick.line2_rtt_ms,
             pending_connect: None,
             connect_tried_fallback: false,
+            pending_used_lan: false,
+            connect_tried_public: false,
+            peer_link_id: 0,
+            next_peer_link_id: 1,
+            last_peer_alive: None,
             events: evt_tx.clone(),
             transfer_hub: TransferHub::default(),
             clipboard_sync: Arc::new(Mutex::new(ClipboardSyncState {
@@ -207,6 +231,13 @@ impl AppState {
                 in_tx,
             )
             .await;
+        });
+
+        tokio::spawn(async move {
+            let client = SignalingClient::new("ws://127.0.0.1:7829/ws".into());
+            let _ = client
+                .run(lan_register, lan_out_rx, lan_prio_rx, lan_incoming)
+                .await;
         });
 
         if let Ok(lan) = LanDiscovery::start(
@@ -227,13 +258,37 @@ impl AppState {
                 interval.tick().await;
                 let mut guard = ping_state.lock().await;
                 guard.heartbeat_sent = Some(Instant::now());
-                let _ = guard.outgoing.send(ClientMsg::Heartbeat).await;
+                let _ = guard.priority.try_send(ClientMsg::Heartbeat);
                 if guard.phase == SessionPhase::Connected {
-                    guard.tick_link_stats();
+                    if guard.session_role == Some(SessionRole::Viewer) {
+                        if guard
+                            .last_peer_alive
+                            .is_some_and(|at| at.elapsed() > Duration::from_secs(4))
+                        {
+                            guard.last_error = Some("Remote device disconnected".into());
+                            guard.reset_session();
+                        }
+                    }
+                    if guard.phase == SessionPhase::Connected {
+                        guard.tick_link_stats();
+                    }
                 }
                 let snap = guard.snapshot_async().await;
                 drop(guard);
                 let _ = ping_events.send(AppEvent::Snapshot(snap)).await;
+            }
+        });
+
+        let mut frame_events_rx = frame_rx.clone();
+        let frame_events = evt_tx.clone();
+        tokio::spawn(async move {
+            loop {
+                if frame_events_rx.changed().await.is_err() {
+                    break;
+                }
+                if let Some(frame) = frame_events_rx.borrow_and_update().clone() {
+                    let _ = frame_events.try_send(AppEvent::Frame(frame));
+                }
             }
         });
 
@@ -244,7 +299,7 @@ impl AppState {
                 let skip_snap = match &msg {
                     ServerMsg::Signal { data, .. } => matches!(
                         data.get("kind").and_then(|v| v.as_str()),
-                        Some("frame") | Some("file_chunk")
+                        Some("frame") | Some("file_chunk") | Some("keepalive")
                     ),
                     _ => false,
                 };
@@ -338,6 +393,11 @@ impl AppState {
         let url_changed = settings.signaling_url != self.settings.signaling_url;
         self.settings = settings.clone();
         let _ = self.quality_tx.send(self.settings.quality.clone());
+        {
+            let mut prefs = self.capture_prefs.lock().await;
+            prefs.resolution = self.settings.resolution.clone();
+            prefs.fps = self.settings.fps;
+        }
         if url_changed {
             self.ready = false;
             let _ = self
@@ -374,6 +434,9 @@ impl AppState {
             quality: self.settings.quality.clone(),
         });
         let url = self.resolve_peer_url(&target_id).await;
+        let using_lan = lan::is_lan_url(&url)
+            && url != settings::PUBLIC_SIGNALING_URL
+            && url != settings::LINE2_SIGNALING_URL;
         let msg = ClientMsg::Connect {
             target_id,
             password,
@@ -382,10 +445,21 @@ impl AppState {
         };
         self.pending_connect = Some(msg.clone());
         self.connect_tried_fallback = false;
+        self.pending_used_lan = using_lan;
+        self.connect_tried_public = !using_lan;
+        if using_lan {
+            if let Some(session) = &mut self.session {
+                session.path = "lan".into();
+            }
+        }
         if lan::is_own_hub(&url) {
             self.peer_outgoing = None;
             self.peer_priority = None;
-            self.outgoing.send(msg).await.ok();
+            if let Some(lan) = &self.lan_outgoing {
+                lan.send(msg).await.ok();
+            } else {
+                self.outgoing.send(msg).await.ok();
+            }
         } else {
             self.dial_peer_hub(url, msg).await;
         }
@@ -393,9 +467,13 @@ impl AppState {
     }
 
     async fn resolve_peer_url(&self, id: &str) -> String {
-        if let Some(lan) = &self.lan {
-            if let Some(dev) = lan.lookup(id).await {
-                return dev.ws;
+        if self.settings.prefer_lan {
+            if let Some(lan) = &self.lan {
+                if let Some(dev) = lan.lookup(id).await {
+                    if lan::hub_reachable(&dev.ws).await {
+                        return dev.ws;
+                    }
+                }
             }
         }
         self.settings.signaling_url.clone()
@@ -412,62 +490,84 @@ impl AppState {
             os: self.identity.os.clone(),
         });
         let incoming = self.incoming_tx.clone();
+        self.next_peer_link_id = self.next_peer_link_id.wrapping_add(1);
+        let link_id = self.next_peer_link_id;
+        self.peer_link_id = link_id;
         tokio::spawn(async move {
             let client = SignalingClient::new(url);
-            let _ = client.run(register, rx, prio_rx, incoming).await;
+            let _ = client.run_once(register, rx, prio_rx, incoming.clone()).await;
+            let _ = incoming
+                .send(ServerMsg::Hangup {
+                    session_id: format!("link:{link_id}"),
+                })
+                .await;
         });
         let _ = tx.send(connect).await;
         self.peer_outgoing = Some(tx);
         self.peer_priority = Some(prio_tx);
     }
 
+    async fn send_control(&self, msg: ClientMsg) {
+        let _ = self.outgoing.send(msg.clone()).await;
+        if let Some(lan) = &self.lan_outgoing {
+            let _ = lan.send(msg.clone()).await;
+        }
+        if let Some(peer) = &self.peer_outgoing {
+            let _ = peer.send(msg).await;
+        }
+    }
+
     pub async fn accept(&mut self) {
         if let Some(incoming) = &self.incoming {
             let session_id = incoming.session_id.clone();
-            self.outgoing
-                .send(ClientMsg::Accept {
-                    session_id,
-                    unattended: false,
-                })
-                .await
-                .ok();
+            self.send_control(ClientMsg::Accept {
+                session_id,
+                unattended: false,
+            })
+            .await;
         }
     }
 
     pub async fn decline(&mut self) {
-        self.stop_media();
         if let Some(incoming) = &self.incoming {
             let session_id = incoming.session_id.clone();
-            self.outgoing
-                .send(ClientMsg::Decline { session_id })
-                .await
-                .ok();
+            self.send_control(ClientMsg::Decline { session_id }).await;
         }
-        self.incoming = None;
-        self.session_role = None;
-        self.phase = SessionPhase::Idle;
+        self.reset_session();
     }
 
     pub async fn hangup(&mut self) {
-        self.stop_media();
+        let was_host = self.session_role == Some(SessionRole::Host);
         if let Some(session) = &self.session {
-            let hangup = ClientMsg::Hangup {
+            self.send_control(ClientMsg::Hangup {
                 session_id: session.session_id.clone(),
-            };
-            if let Some(peer) = &self.peer_outgoing {
-                let _ = peer.send(hangup).await;
-            } else {
-                let _ = self.outgoing.send(hangup).await;
-            }
+            })
+            .await;
         }
+        self.finish_session(was_host);
+    }
+
+    fn reset_session(&mut self) {
+        self.stop_media();
+        self.session = None;
+        self.incoming = None;
         self.peer_outgoing = None;
         self.peer_priority = None;
         self.pending_connect = None;
         self.connect_tried_fallback = false;
-        self.session = None;
-        self.incoming = None;
+        self.pending_used_lan = false;
+        self.connect_tried_public = false;
+        self.peer_link_id = 0;
+        self.last_peer_alive = None;
         self.session_role = None;
         self.phase = SessionPhase::Idle;
+    }
+
+    fn finish_session(&mut self, was_host: bool) {
+        self.reset_session();
+        if was_host && self.settings.lock_after_session {
+            crate::lock::lock_workstation();
+        }
     }
 
     pub fn input_route(
@@ -475,6 +575,7 @@ impl AppState {
     ) -> Option<(
         String,
         mpsc::Sender<ClientMsg>,
+        Option<mpsc::Sender<ClientMsg>>,
         Option<mpsc::Sender<ClientMsg>>,
     )> {
         let session = self.session.as_ref()?;
@@ -485,6 +586,7 @@ impl AppState {
             session.session_id.clone(),
             self.priority.clone(),
             self.peer_priority.clone(),
+            self.lan_priority.clone(),
         ))
     }
 
@@ -501,7 +603,27 @@ impl AppState {
             event,
             &self.priority,
             self.peer_priority.as_ref(),
+            self.lan_priority.as_ref(),
             lossy,
+        )
+        .await;
+        Ok(())
+    }
+
+    pub async fn send_viewport(&self, width: u32, height: u32) -> Result<()> {
+        let Some(session) = &self.session else {
+            return Ok(());
+        };
+        if self.session_role != Some(SessionRole::Viewer) {
+            return Ok(());
+        }
+        media::send_viewport_signal(
+            &session.session_id,
+            width,
+            height,
+            &self.outgoing,
+            self.peer_outgoing.as_ref(),
+            self.lan_outgoing.as_ref(),
         )
         .await;
         Ok(())
@@ -524,6 +646,7 @@ impl AppState {
                     &quality,
                     &self.outgoing,
                     self.peer_outgoing.as_ref(),
+                    self.lan_outgoing.as_ref(),
                 )
                 .await;
             }
@@ -546,6 +669,7 @@ impl AppState {
             path,
             &self.outgoing,
             self.peer_outgoing.as_ref(),
+            self.lan_outgoing.as_ref(),
         )
         .await
     }
@@ -568,6 +692,7 @@ impl AppState {
         self.clipboard_stop = Some(stop_tx);
         let outgoing = self.outgoing.clone();
         let peer = self.peer_outgoing.clone();
+        let lan = self.lan_outgoing.clone();
         let sync = self.clipboard_sync.clone();
         tokio::spawn(async move {
             let mut last_sent = String::new();
@@ -598,6 +723,7 @@ impl AppState {
                                 &text,
                                 &outgoing,
                                 peer.as_ref(),
+                                lan.as_ref(),
                             )
                             .await;
                             last_sent = text;
@@ -631,9 +757,12 @@ impl AppState {
             self.media = Some(media::start_host(
                 session.session_id,
                 self.quality_tx.subscribe(),
+                self.capture_prefs.clone(),
                 self.outgoing.clone(),
                 self.peer_outgoing.clone(),
+                self.lan_outgoing.clone(),
                 Some(self.frame_tx.clone()),
+                self.host_screen.clone(),
             ));
         }
         self.start_clipboard_sync();
@@ -668,24 +797,37 @@ impl AppState {
                 from,
                 password,
             } => {
-                self.session_role = Some(SessionRole::Host);
+                if matches!(
+                    self.phase,
+                    SessionPhase::Connected | SessionPhase::Connecting | SessionPhase::Incoming
+                ) {
+                    let _ = self
+                        .send_control(ClientMsg::Decline { session_id })
+                        .await;
+                    return;
+                }
                 match self.passwords.verify(&password, self.settings.unattended) {
                     AuthOutcome::Failed => {
-                        let _ = self
-                            .outgoing
-                            .send(ClientMsg::AuthFailed { session_id })
-                            .await;
+                        self.send_control(ClientMsg::AuthFailed { session_id }).await;
                     }
                     AuthOutcome::Unattended => {
-                        let _ = self
-                            .outgoing
-                            .send(ClientMsg::Accept {
-                                session_id,
-                                unattended: true,
-                            })
-                            .await;
+                        self.session_role = Some(SessionRole::Host);
+                        self.send_control(ClientMsg::Accept {
+                            session_id,
+                            unattended: true,
+                        })
+                        .await;
+                    }
+                    AuthOutcome::NeedConfirm if !self.settings.require_confirm => {
+                        self.session_role = Some(SessionRole::Host);
+                        self.send_control(ClientMsg::Accept {
+                            session_id,
+                            unattended: false,
+                        })
+                        .await;
                     }
                     AuthOutcome::NeedConfirm => {
+                        self.session_role = Some(SessionRole::Host);
                         self.incoming = Some(IncomingView {
                             session_id,
                             from_id: from.id,
@@ -702,6 +844,7 @@ impl AppState {
                 self.recents
                     .touch(peer.id.clone(), peer.name.clone(), os_label(&peer.os));
                 let _ = self.recents.save(&self.dir);
+                let path = if self.pending_used_lan { "lan" } else { "relay" };
                 self.session = Some(SessionView {
                     session_id,
                     peer_id: peer.id,
@@ -710,74 +853,71 @@ impl AppState {
                     rtt_ms: self.network_rtt_ms.max(1),
                     down_kbps: quality_target_kbps(&self.settings.quality),
                     up_kbps: 180,
-                    path: if self.settings.p2p_preferred {
-                        "p2p".into()
-                    } else {
-                        "relay".into()
-                    },
+                    path: path.into(),
                     quality: self.settings.quality.clone(),
                 });
                 self.incoming = None;
                 self.phase = SessionPhase::Connected;
+                self.last_peer_alive = Some(Instant::now());
                 self.start_media();
             }
             ServerMsg::Declined { .. } => {
-                self.stop_media();
-                self.session = None;
-                self.incoming = None;
-                self.peer_outgoing = None;
-                self.peer_priority = None;
-                self.phase = SessionPhase::Idle;
+                self.reset_session();
                 self.last_error = Some("The other device declined".into());
             }
             ServerMsg::AuthFailed { message, .. } => {
-                self.stop_media();
-                self.session = None;
-                self.peer_outgoing = None;
-                self.peer_priority = None;
-                self.phase = SessionPhase::Idle;
+                self.reset_session();
                 self.last_error = Some(message);
             }
             ServerMsg::PeerOffline { .. } => {
-                if self.settings.is_auto()
-                    && !self.connect_tried_fallback
-                    && self.phase == SessionPhase::Connecting
-                {
+                if self.phase == SessionPhase::Connecting {
                     if let Some(msg) = self.pending_connect.clone() {
-                        self.connect_tried_fallback = true;
-                        let other = settings::other_line_url(&self.settings.signaling_url);
-                        self.active_line = settings::line_of_url(other).into();
-                        self.dial_peer_hub(other.to_string(), msg).await;
-                        return;
+                        if self.pending_used_lan && !self.connect_tried_public {
+                            self.pending_used_lan = false;
+                            self.connect_tried_public = true;
+                            if let Some(session) = &mut self.session {
+                                session.path = "relay".into();
+                            }
+                            let url = self.settings.signaling_url.clone();
+                            if lan::is_own_hub(&url) {
+                                self.peer_outgoing = None;
+                                self.peer_priority = None;
+                                self.outgoing.send(msg).await.ok();
+                            } else {
+                                self.dial_peer_hub(url, msg).await;
+                            }
+                            return;
+                        }
+                        if self.settings.is_auto() && !self.connect_tried_fallback {
+                            self.connect_tried_fallback = true;
+                            let other = settings::other_line_url(&self.settings.signaling_url);
+                            self.active_line = settings::line_of_url(other).into();
+                            self.dial_peer_hub(other.to_string(), msg).await;
+                            return;
+                        }
                     }
                 }
-                self.stop_media();
-                self.session = None;
-                self.pending_connect = None;
-                self.connect_tried_fallback = false;
-                self.peer_outgoing = None;
-                self.peer_priority = None;
-                self.phase = SessionPhase::Idle;
+                self.reset_session();
                 self.last_error = Some(
                     "Device not found on this Wi-Fi. Open RemoteX on the other computer first."
                         .into(),
                 );
             }
-            ServerMsg::Hangup { .. } => {
-                self.stop_media();
-                self.session = None;
-                self.incoming = None;
-                self.peer_outgoing = None;
-                self.peer_priority = None;
-                self.session_role = None;
-                self.phase = SessionPhase::Idle;
+            ServerMsg::Hangup { session_id } => {
+                if let Some(rest) = session_id.strip_prefix("link:") {
+                    if rest.parse::<u64>().ok() != Some(self.peer_link_id) || self.peer_link_id == 0 {
+                        return;
+                    }
+                }
+                let was_host = self.session_role == Some(SessionRole::Host);
+                if self.phase == SessionPhase::Connected {
+                    self.last_error = Some("Remote device disconnected".into());
+                }
+                self.finish_session(was_host);
             }
             ServerMsg::Error { message } => {
                 if self.phase == SessionPhase::Connecting {
-                    self.phase = SessionPhase::Idle;
-                    self.session = None;
-                    self.peer_outgoing = None;
-                self.peer_priority = None;
+                    self.reset_session();
                     self.last_error = Some(message);
                 }
             }
@@ -793,6 +933,7 @@ impl AppState {
                 if self.phase != SessionPhase::Connected {
                     return;
                 }
+                self.last_peer_alive = Some(Instant::now());
                 let Some(role) = self.session_role else {
                     return;
                 };
@@ -815,6 +956,10 @@ impl AppState {
                             .events
                             .send(AppEvent::FileReceived(done))
                             .await;
+                    }
+                    Ok(Some(SignalSideEffect::Viewport(width))) => {
+                        let mut prefs = self.capture_prefs.lock().await;
+                        prefs.viewport_w = width;
                     }
                     Ok(None) => {}
                     Err(e) => {
@@ -845,9 +990,9 @@ fn os_label(os: &OsKind) -> String {
 
 fn quality_target_kbps(quality: &str) -> u32 {
     match quality {
-        "smooth" => 2800,
-        "high" => 18000,
-        "original" => 24000,
-        _ => 10000,
+        "smooth" => 2200,
+        "high" => 8000,
+        "original" => 9000,
+        _ => 4500,
     }
 }

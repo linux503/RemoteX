@@ -36,6 +36,7 @@ struct Inner {
 struct DeviceConn {
     tx: mpsc::UnboundedSender<ServerMsg>,
     info: DeviceInfo,
+    last_seen: std::time::Instant,
 }
 
 #[derive(Clone)]
@@ -74,10 +75,13 @@ pub async fn serve(addr: SocketAddr) -> std::io::Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/ws", get(ws_handler))
-        .with_state(hub);
+        .with_state(hub.clone());
     let listener = tokio::net::TcpListener::bind(addr).await?;
     HOSTING.store(true, Ordering::SeqCst);
     info!("RemoteX signaling on ws://{addr}/ws");
+    tokio::spawn(async move {
+        sweep_stale(hub).await;
+    });
     axum::serve(listener, app).await
 }
 
@@ -146,8 +150,49 @@ async fn handle_socket(socket: WebSocket, hub: Hub) {
             .map(|d| d.tx.same_channel(&tx))
             .unwrap_or(false)
         {
-            inner.devices.remove(&id);
-            info!("device {id} disconnected");
+            drop_device(&mut inner, &id);
+        }
+    }
+}
+
+async fn sweep_stale(hub: Hub) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+    loop {
+        interval.tick().await;
+        let mut inner = hub.inner.lock().await;
+        let stale: Vec<String> = inner
+            .devices
+            .iter()
+            .filter(|(_, conn)| conn.last_seen.elapsed() > std::time::Duration::from_secs(8))
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in stale {
+            info!("device {id} timed out");
+            drop_device(&mut inner, &id);
+        }
+    }
+}
+
+fn drop_device(inner: &mut Inner, id: &str) {
+    inner.devices.remove(id);
+    info!("device {id} disconnected");
+    let stale: Vec<_> = inner
+        .sessions
+        .iter()
+        .filter(|(_, s)| s.caller_id == id || s.callee_id == id)
+        .map(|(sid, s)| (sid.clone(), s.clone()))
+        .collect();
+    for (sid, session) in stale {
+        inner.sessions.remove(&sid);
+        let peer = if session.caller_id == id {
+            session.callee_id
+        } else {
+            session.caller_id
+        };
+        if let Some(conn) = inner.devices.get(&peer) {
+            let _ = conn.tx.send(ServerMsg::Hangup {
+                session_id: sid,
+            });
         }
     }
 }
@@ -158,6 +203,11 @@ async fn handle_client(
     device_id: &mut Option<String>,
     msg: ClientMsg,
 ) -> Result<(), String> {
+    if let Some(id) = device_id.as_ref() {
+        if let Some(conn) = hub.inner.lock().await.devices.get_mut(id) {
+            conn.last_seen = std::time::Instant::now();
+        }
+    }
     match msg {
         ClientMsg::Register {
             device_id: id,
@@ -180,6 +230,7 @@ async fn handle_client(
                 DeviceConn {
                     tx: tx.clone(),
                     info,
+                    last_seen: std::time::Instant::now(),
                 },
             );
             *device_id = Some(id.clone());

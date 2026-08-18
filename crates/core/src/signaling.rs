@@ -1,11 +1,16 @@
 use futures_util::{SinkExt, StreamExt};
 use protocol::{ClientMsg, ServerMsg};
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
+use tokio::time::MissedTickBehavior;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::{connect_async_with_config, tungstenite::Message};
 use tracing::{info, warn};
 
 use crate::{Error, Result};
+
+const IDLE_TIMEOUT: Duration = Duration::from_secs(6);
+const PING_EVERY: Duration = Duration::from_secs(2);
 
 pub struct SignalingClient {
     pub url: String,
@@ -25,6 +30,28 @@ impl SignalingClient {
     ) -> Result<()> {
         let (_tx, rx) = watch::channel(self.url.clone());
         Self::run_watching(rx, register, outgoing, priority, incoming).await
+    }
+
+    pub async fn run_once(
+        &self,
+        register: ClientMsg,
+        outgoing: mpsc::Receiver<ClientMsg>,
+        priority: mpsc::Receiver<ClientMsg>,
+        incoming: mpsc::Sender<ServerMsg>,
+    ) -> Result<()> {
+        let (_tx, mut rx) = watch::channel(self.url.clone());
+        let mut outgoing = outgoing;
+        let mut priority = priority;
+        connect_once(
+            &self.url,
+            &register,
+            &mut outgoing,
+            &mut priority,
+            &incoming,
+            &mut rx,
+        )
+        .await
+        .map(|_| ())
     }
 
     pub async fn run_watching(
@@ -55,7 +82,7 @@ impl SignalingClient {
                     if outgoing.is_closed() {
                         return Ok(());
                     }
-                    tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+                    tokio::time::sleep(Duration::from_millis(1200)).await;
                     continue;
                 }
             }
@@ -89,6 +116,9 @@ async fn connect_once(
     info!("connected to signaling {url}");
     let json = serde_json::to_string(register)?;
     sink.send(Message::Text(json.into())).await?;
+    let mut last_read = Instant::now();
+    let mut ping = tokio::time::interval(PING_EVERY);
+    ping.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
     loop {
         tokio::select! {
@@ -99,17 +129,8 @@ async fn connect_once(
                 }
                 return Ok(ReconnectReason::UrlChanged);
             }
-            msg = priority.recv() => {
-                let Some(msg) = msg else { continue; };
-                let json = serde_json::to_string(&msg)?;
-                sink.send(Message::Text(json.into())).await?;
-            }
-            msg = outgoing.recv() => {
-                let Some(msg) = msg else { return Ok(ReconnectReason::Closed); };
-                let json = serde_json::to_string(&msg)?;
-                sink.send(Message::Text(json.into())).await?;
-            }
             frame = stream.next() => {
+                last_read = Instant::now();
                 match frame {
                     Some(Ok(Message::Text(text))) => {
                         if let Ok(msg) = serde_json::from_str::<ServerMsg>(&text) {
@@ -119,10 +140,28 @@ async fn connect_once(
                     Some(Ok(Message::Ping(data))) => {
                         sink.send(Message::Pong(data)).await?;
                     }
+                    Some(Ok(Message::Pong(_))) => {}
                     Some(Ok(Message::Close(_))) | None => return Ok(ReconnectReason::Closed),
                     Some(Err(err)) => return Err(err.into()),
                     _ => {}
                 }
+            }
+            _ = ping.tick() => {
+                if last_read.elapsed() > IDLE_TIMEOUT {
+                    warn!("signaling idle timeout {url}");
+                    return Ok(ReconnectReason::Closed);
+                }
+                sink.send(Message::Ping(Default::default())).await?;
+            }
+            msg = priority.recv() => {
+                let Some(msg) = msg else { continue; };
+                let json = serde_json::to_string(&msg)?;
+                sink.send(Message::Text(json.into())).await?;
+            }
+            msg = outgoing.recv() => {
+                let Some(msg) = msg else { return Ok(ReconnectReason::Closed); };
+                let json = serde_json::to_string(&msg)?;
+                sink.send(Message::Text(json.into())).await?;
             }
         }
     }

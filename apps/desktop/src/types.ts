@@ -43,6 +43,9 @@ export interface AppSettings {
   hardware_encode: boolean;
   quality: string;
   fps: number;
+  prefer_lan: boolean;
+  screen_fit: string;
+  resolution: string;
 }
 
 export interface SessionView {
@@ -109,6 +112,9 @@ export const defaultSettings = (): AppSettings => ({
   hardware_encode: true,
   quality: "high",
   fps: 60,
+  prefer_lan: true,
+  screen_fit: "auto",
+  resolution: "auto",
 });
 
 export const mockSnapshot = (): Snapshot => ({
@@ -129,20 +135,27 @@ export const mockSnapshot = (): Snapshot => ({
   recents: [
     {
       id: "194827563",
-      name: "Office PC",
-      os: "windows",
+      name: "403deMac-Studio.lan",
+      os: "macos",
       favorite: true,
       last_seen: new Date().toISOString(),
     },
     {
       id: "391285663",
-      name: "Studio Mac",
+      name: "NeoMac-mini.local",
       os: "macos",
       favorite: false,
       last_seen: new Date().toISOString(),
     },
   ],
-  nearby: [],
+  nearby: [
+    {
+      id: "662184905",
+      name: "samdeMac-mini.local",
+      os: "macos",
+      ws: "ws://192.168.1.22:7829/ws",
+    },
+  ],
   settings: defaultSettings(),
   unattended: false,
   has_permanent_password: false,
@@ -154,7 +167,7 @@ export const mockSnapshot = (): Snapshot => ({
 });
 
 export function previewSnapshot(scene: string | null): Snapshot {
-  const base = { ...mockSnapshot(), recents: [] };
+  const base = mockSnapshot();
   if (scene === "connecting") {
     return {
       ...base,

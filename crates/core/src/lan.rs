@@ -283,6 +283,40 @@ pub fn is_own_hub(url: &str) -> bool {
         || local_lan_ip().is_some_and(|ip| url.contains(&ip))
 }
 
+pub fn is_lan_url(url: &str) -> bool {
+    if is_own_hub(url) {
+        return true;
+    }
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str() else {
+        return false;
+    };
+    let Ok(ip) = host.parse::<std::net::Ipv4Addr>() else {
+        return false;
+    };
+    ip.is_private() || ip.is_loopback()
+}
+
+pub async fn hub_reachable(ws: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(ws) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str() else {
+        return false;
+    };
+    let port = parsed.port_or_known_default().unwrap_or(DEFAULT_SIGNALING_PORT);
+    tokio::time::timeout(
+        Duration::from_millis(350),
+        tokio::net::TcpStream::connect((host, port)),
+    )
+    .await
+    .ok()
+    .and_then(Result::ok)
+    .is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,6 +327,14 @@ mod tests {
         assert!(!is_wifi_lan_ipv4(Ipv4Addr::new(198, 18, 0, 1)));
         assert!(is_wifi_lan_ipv4(Ipv4Addr::new(192, 168, 1, 18)));
         assert!(is_fake_vpn_signaling("ws://198.18.0.1:7829/ws"));
+    }
+
+    #[test]
+    fn lan_url_detects_private_ip() {
+        assert!(is_lan_url("ws://192.168.1.18:7829/ws"));
+        assert!(is_lan_url("ws://10.0.0.8:7829/ws"));
+        assert!(is_lan_url("ws://127.0.0.1:7829/ws"));
+        assert!(!is_lan_url("ws://23.226.134.88:7829/ws"));
     }
 
     #[test]

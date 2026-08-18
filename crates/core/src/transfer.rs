@@ -125,6 +125,7 @@ pub async fn send_file(
     path: &Path,
     outgoing: &mpsc::Sender<ClientMsg>,
     peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<&mpsc::Sender<ClientMsg>>,
 ) -> Result<()> {
     let meta = std::fs::metadata(path)?;
     let size = meta.len();
@@ -146,6 +147,7 @@ pub async fn send_file(
         json!({ "kind": "file_begin", "id": id, "name": name, "size": size }),
         outgoing,
         peer_outgoing,
+        lan_outgoing,
     )
     .await;
     for (index, chunk) in bytes.chunks(CHUNK_SIZE).enumerate() {
@@ -159,6 +161,7 @@ pub async fn send_file(
             }),
             outgoing,
             peer_outgoing,
+            lan_outgoing,
         )
         .await;
     }
@@ -167,6 +170,7 @@ pub async fn send_file(
         json!({ "kind": "file_end", "id": id }),
         outgoing,
         peer_outgoing,
+        lan_outgoing,
     )
     .await;
     Ok(())
@@ -225,14 +229,22 @@ async fn send_signal(
     data: Value,
     outgoing: &mpsc::Sender<ClientMsg>,
     peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<&mpsc::Sender<ClientMsg>>,
 ) {
     let msg = ClientMsg::Signal {
         session_id: session_id.to_string(),
         data,
     };
+    let mut targets = Vec::with_capacity(2);
     if let Some(peer) = peer_outgoing {
-        let _ = peer.send(msg).await;
+        targets.push(peer);
     } else {
-        let _ = outgoing.send(msg).await;
+        targets.push(outgoing);
+        if let Some(lan) = lan_outgoing {
+            targets.push(lan);
+        }
+    }
+    for tx in targets {
+        let _ = tx.send(msg.clone()).await;
     }
 }

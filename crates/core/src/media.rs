@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
-use capture::{capture_primary_jpeg, quality_params, CaptureError};
+use capture::{capture_interval_ms, capture_max_width, capture_primary_jpeg_changed, quality_params, CaptureError};
 use crate::clipboard;
 use crate::transfer::{TransferComplete, TransferHub};
 use input::{inject, InputEvent};
@@ -9,6 +9,23 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, watch, Mutex};
+
+#[derive(Debug, Clone)]
+pub struct CapturePrefs {
+    pub resolution: String,
+    pub fps: u32,
+    pub viewport_w: u32,
+}
+
+impl Default for CapturePrefs {
+    fn default() -> Self {
+        Self {
+            resolution: "auto".into(),
+            fps: 60,
+            viewport_w: 1920,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionRole {
@@ -36,9 +53,12 @@ impl MediaHandle {
 pub fn start_host(
     session_id: String,
     quality_rx: watch::Receiver<String>,
+    capture_prefs: Arc<Mutex<CapturePrefs>>,
     outgoing: mpsc::Sender<ClientMsg>,
     peer_outgoing: Option<mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<mpsc::Sender<ClientMsg>>,
     preview_tx: Option<watch::Sender<Option<RemoteFrame>>>,
+    host_screen: Arc<Mutex<(u32, u32)>>,
 ) -> MediaHandle {
     let (stop_tx, stop_rx) = watch::channel(false);
     let (latest_out, latest_rx) = watch::channel(None::<Value>);
@@ -47,12 +67,17 @@ pub fn start_host(
     let mut quality_rx = quality_rx;
     tokio::spawn(async move {
         let mut failures = 0u32;
+        let mut last_fp = 0u64;
+        let mut ticks = 0u32;
         loop {
             if *capture_stop.borrow() {
                 break;
             }
             let quality = quality_rx.borrow().clone();
-            let (max_width, jpeg_q, wait_ms) = quality_params(&quality);
+            let (_q_max, jpeg_q, wait_q) = quality_params(&quality);
+            let prefs = capture_prefs.lock().await.clone();
+            let max_width = capture_max_width(&prefs.resolution, prefs.viewport_w);
+            let wait_ms = capture_interval_ms(prefs.fps, wait_q);
             tokio::select! {
                 changed = stop_watch(capture_stop.clone()) => {
                     if changed {
@@ -63,17 +88,33 @@ pub fn start_host(
                     if changed.is_err() {
                         break;
                     }
+                    last_fp = 0;
                 }
-                _ = tokio::time::sleep(Duration::from_millis(wait_ms)) => {
-                    let frame = tokio::task::spawn_blocking(move || capture_primary_jpeg(max_width, jpeg_q)).await;
-                    let Ok(Ok(frame)) = frame else {
+                    _ = tokio::time::sleep(Duration::from_millis(wait_ms)) => {
+                    let frame = tokio::task::spawn_blocking(move || {
+                        let mut fp = last_fp;
+                        let captured = capture_primary_jpeg_changed(max_width, jpeg_q, Some(&mut fp));
+                        (captured, fp)
+                    }).await;
+                    let Ok((captured, fp)) = frame else {
+                        continue;
+                    };
+                    last_fp = fp;
+                    let Ok(frame) = captured else {
                         failures = failures.saturating_add(1);
                         if failures == 1 || failures % 20 == 0 {
                             tracing::warn!("screen capture failed (check Screen Recording permission on macOS)");
                         }
                         continue;
                     };
+                    let Some(frame) = frame else {
+                        continue;
+                    };
                     failures = 0;
+                    ticks = ticks.saturating_add(1);
+                    if ticks % 45 == 0 {
+                        *host_screen.lock().await = primary_screen_size();
+                    }
                     let encoded = B64.encode(&frame.bytes);
                     let remote = RemoteFrame {
                         width: frame.width,
@@ -98,6 +139,9 @@ pub fn start_host(
     let mut send_stop = stop_rx;
     tokio::spawn(async move {
         let mut latest_rx = latest_rx;
+        let mut alive = tokio::time::interval(Duration::from_millis(1500));
+        alive.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut last_send = std::time::Instant::now();
         loop {
             tokio::select! {
                 changed = send_stop.changed() => {
@@ -111,7 +155,29 @@ pub fn start_host(
                     }
                     let payload = latest_rx.borrow_and_update().clone();
                     let Some(payload) = payload else { continue; };
-                    send_signal(&session_id, payload, &outgoing, peer_outgoing.as_ref()).await;
+                    last_send = std::time::Instant::now();
+                    send_signal_latest(
+                        &session_id,
+                        payload,
+                        &outgoing,
+                        peer_outgoing.as_ref(),
+                        lan_outgoing.as_ref(),
+                    )
+                    .await;
+                }
+                _ = alive.tick() => {
+                    if last_send.elapsed() < Duration::from_millis(1400) {
+                        continue;
+                    }
+                    last_send = std::time::Instant::now();
+                    send_signal(
+                        &session_id,
+                        json!({ "kind": "keepalive" }),
+                        &outgoing,
+                        peer_outgoing.as_ref(),
+                        lan_outgoing.as_ref(),
+                    )
+                    .await;
                 }
             }
         }
@@ -150,6 +216,12 @@ pub fn handle_signal(
                 height: height as u32,
                 data: data.to_string(),
             }));
+        }
+        Some("viewport") if matches!(role, SessionRole::Host) => {
+            let width = data.get("width").and_then(Value::as_u64).unwrap_or(0) as u32;
+            if width >= 640 {
+                return Ok(Some(SignalSideEffect::Viewport(width)));
+            }
         }
         Some("quality") if matches!(role, SessionRole::Host) => {
             if let Some(value) = data.get("value").and_then(Value::as_str) {
@@ -195,6 +267,7 @@ pub fn handle_signal(
 pub enum SignalSideEffect {
     ClipboardSynced(String),
     FileReceived(TransferComplete),
+    Viewport(u32),
 }
 
 pub async fn send_clipboard_signal(
@@ -202,12 +275,13 @@ pub async fn send_clipboard_signal(
     text: &str,
     outgoing: &mpsc::Sender<ClientMsg>,
     peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<&mpsc::Sender<ClientMsg>>,
 ) {
     let payload = json!({
         "kind": "clipboard",
         "text": text,
     });
-    send_signal(session_id, payload, outgoing, peer_outgoing).await;
+    send_signal(session_id, payload, outgoing, peer_outgoing, lan_outgoing).await;
 }
 
 pub async fn send_quality_signal(
@@ -215,12 +289,29 @@ pub async fn send_quality_signal(
     quality: &str,
     outgoing: &mpsc::Sender<ClientMsg>,
     peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<&mpsc::Sender<ClientMsg>>,
 ) {
     let payload = json!({
         "kind": "quality",
         "value": quality,
     });
-    send_signal(session_id, payload, outgoing, peer_outgoing).await;
+    send_signal(session_id, payload, outgoing, peer_outgoing, lan_outgoing).await;
+}
+
+pub async fn send_viewport_signal(
+    session_id: &str,
+    width: u32,
+    height: u32,
+    outgoing: &mpsc::Sender<ClientMsg>,
+    peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+) {
+    let payload = json!({
+        "kind": "viewport",
+        "width": width,
+        "height": height,
+    });
+    send_signal(session_id, payload, outgoing, peer_outgoing, lan_outgoing).await;
 }
 
 pub async fn send_input_signal(
@@ -228,6 +319,7 @@ pub async fn send_input_signal(
     event: InputEvent,
     priority: &mpsc::Sender<ClientMsg>,
     peer_priority: Option<&mpsc::Sender<ClientMsg>>,
+    lan_priority: Option<&mpsc::Sender<ClientMsg>>,
     lossy: bool,
 ) {
     let payload = json!({
@@ -238,12 +330,7 @@ pub async fn send_input_signal(
         session_id: session_id.to_string(),
         data: payload,
     };
-    let tx = peer_priority.unwrap_or(priority);
-    if lossy {
-        let _ = tx.try_send(msg);
-        return;
-    }
-    let _ = tx.send(msg).await;
+    dispatch_signal(msg, priority, peer_priority, lan_priority, lossy).await;
 }
 
 async fn send_signal(
@@ -251,15 +338,52 @@ async fn send_signal(
     data: Value,
     outgoing: &mpsc::Sender<ClientMsg>,
     peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<&mpsc::Sender<ClientMsg>>,
 ) {
     let msg = ClientMsg::Signal {
         session_id: session_id.to_string(),
         data,
     };
+    dispatch_signal(msg, outgoing, peer_outgoing, lan_outgoing, false).await;
+}
+
+async fn send_signal_latest(
+    session_id: &str,
+    data: Value,
+    outgoing: &mpsc::Sender<ClientMsg>,
+    peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+) {
+    let msg = ClientMsg::Signal {
+        session_id: session_id.to_string(),
+        data,
+    };
+    dispatch_signal(msg, outgoing, peer_outgoing, lan_outgoing, true).await;
+}
+
+async fn dispatch_signal(
+    msg: ClientMsg,
+    outgoing: &mpsc::Sender<ClientMsg>,
+    peer_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lan_outgoing: Option<&mpsc::Sender<ClientMsg>>,
+    lossy: bool,
+) {
+    let mut targets = Vec::with_capacity(2);
     if let Some(peer) = peer_outgoing {
-        let _ = peer.send(msg).await;
+        targets.push(peer);
     } else {
-        let _ = outgoing.send(msg).await;
+        targets.push(outgoing);
+        if let Some(lan) = lan_outgoing {
+            targets.push(lan);
+        }
+    }
+    for (i, tx) in targets.into_iter().enumerate() {
+        let packet = if i == 0 { msg.clone() } else { msg.clone() };
+        if lossy {
+            let _ = tx.try_send(packet);
+        } else {
+            let _ = tx.send(packet).await;
+        }
     }
 }
 

@@ -96,69 +96,177 @@ function modifierBits(event: { shiftKey: boolean; ctrlKey: boolean; altKey: bool
   return bits;
 }
 
-function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) {
+function applyScreenFit(
+  canvas: HTMLCanvasElement,
+  stage: HTMLElement,
+  fit: string,
+  iw: number,
+  ih: number,
+) {
+  stage.classList.toggle("fit-original", fit === "original");
+  if (!iw || !ih) return;
+  if (fit === "fill") {
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.objectFit = "fill";
+    return;
+  }
+  if (fit === "original") {
+    canvas.style.width = `${iw}px`;
+    canvas.style.height = `${ih}px`;
+    canvas.style.objectFit = "contain";
+    return;
+  }
+  const sw = stage.clientWidth;
+  const sh = stage.clientHeight;
+  if (!sw || !sh) return;
+  const scale = Math.min(sw / iw, sh / ih);
+  canvas.style.width = `${Math.max(1, Math.round(iw * scale))}px`;
+  canvas.style.height = `${Math.max(1, Math.round(ih * scale))}px`;
+  canvas.style.objectFit = "contain";
+}
+
+function RemoteDesktop({
+  locale,
+  isHost,
+  fit,
+}: {
+  locale: Locale;
+  isHost: boolean;
+  fit: string;
+}) {
   const [waiting, setWaiting] = useState(true);
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastData = useRef("");
+  const drawing = useRef(false);
+  const frameSize = useRef({ w: 0, h: 0 });
+  const didFitWindow = useRef(false);
   const pendingMove = useRef<{ x: number; y: number } | null>(null);
   const sendingMove = useRef(false);
+  const pendingWheel = useRef<{ dx: number; dy: number } | null>(null);
+  const sendingWheel = useRef(false);
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
 
-  const drawFrame = async (data: string) => {
-    if (!data || data === lastData.current) return;
-    lastData.current = data;
+  const layoutCanvas = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    try {
-      const raw = atob(data);
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "image/jpeg" });
-      let bmp: ImageBitmap;
+    const stage = stageRef.current;
+    if (!canvas || !stage || !frameSize.current.w) return;
+    applyScreenFit(canvas, stage, fitRef.current, frameSize.current.w, frameSize.current.h);
+  };
+
+  const sendViewport = () => {
+    if (!isTauri() || isHost) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const w = Math.round(stage.clientWidth);
+    const h = Math.round(stage.clientHeight);
+    if (w < 640 || h < 360) return;
+    void invoke("session_viewport", { width: w, height: h });
+  };
+
+  const drawFrame = (data: string) => {
+    if (!data || data === lastData.current || drawing.current) return;
+    lastData.current = data;
+    drawing.current = true;
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      drawing.current = false;
+      return;
+    }
+    void (async () => {
       try {
-        bmp = await createImageBitmap(blob, {
+        const bin = atob(data);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: "image/jpeg" });
+        const bmp = await createImageBitmap(blob, {
           colorSpaceConversion: "none",
           premultiplyAlpha: "none",
         });
-      } catch {
-        bmp = await createImageBitmap(blob);
-      }
-      if (canvas.width !== bmp.width || canvas.height !== bmp.height) {
-        canvas.width = bmp.width;
-        canvas.height = bmp.height;
-      }
-      const stage = stageRef.current;
-      if (stage) {
-        const scale = Math.min(stage.clientWidth / bmp.width, stage.clientHeight / bmp.height);
-        canvas.style.width = `${Math.max(1, Math.round(bmp.width * scale))}px`;
-        canvas.style.height = `${Math.max(1, Math.round(bmp.height * scale))}px`;
-      }
-      const ctx = canvas.getContext("2d", { alpha: false });
-      if (!ctx) {
+        if (canvas.width !== bmp.width || canvas.height !== bmp.height) {
+          canvas.width = bmp.width;
+          canvas.height = bmp.height;
+        }
+        frameSize.current = { w: bmp.width, h: bmp.height };
+        layoutCanvas();
+        if (!didFitWindow.current && isTauri() && fitRef.current === "auto") {
+          didFitWindow.current = true;
+          const fw = bmp.width;
+          const fh = bmp.height;
+          void (async () => {
+            const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
+            const chrome = 48;
+            let w = 1120;
+            let h = Math.round((w * fh) / fw) + chrome;
+            if (h > 860) {
+              h = 860;
+              w = Math.max(800, Math.round(((h - chrome) * fw) / fh));
+            }
+            await getCurrentWindow().setSize(new LogicalSize(w, h));
+            requestAnimationFrame(layoutCanvas);
+          })();
+        }
+        const ctx =
+          canvas.getContext("2d", { alpha: false, desynchronized: true }) ||
+          canvas.getContext("2d", { alpha: false });
+        if (!ctx) {
+          bmp.close();
+          return;
+        }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(bmp, 0, 0);
         bmp.close();
-        return;
+        setWaiting((w) => (w ? false : w));
+      } catch {
+        lastData.current = "";
+      } finally {
+        drawing.current = false;
       }
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(bmp, 0, 0);
-      bmp.close();
-      setWaiting(false);
-    } catch {
-      /* keep last frame */
-    }
+    })();
   };
 
   useEffect(() => {
     if (!isTauri()) return;
-    const timer = window.setInterval(() => {
-      void invoke<{ data: string; width: number; height: number } | null>("latest_frame")
+    let unlisten: (() => void) | undefined;
+    let alive = true;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      unlisten = await listen<{ data: string; width: number; height: number }>("remote-frame", (event) => {
+        if (alive && event.payload?.data) drawFrame(event.payload.data);
+      });
+      const frame = await invoke<{ data: string } | null>("latest_frame").catch(() => null);
+      if (alive && frame?.data) drawFrame(frame.data);
+    })();
+    const fallback = window.setInterval(() => {
+      if (drawing.current) return;
+      void invoke<{ data: string } | null>("latest_frame")
         .then((frame) => {
-          if (frame?.data) void drawFrame(frame.data);
+          if (frame?.data) drawFrame(frame.data);
         })
         .catch(() => {});
-    }, 32);
-    return () => window.clearInterval(timer);
+    }, 240);
+    return () => {
+      alive = false;
+      unlisten?.();
+      window.clearInterval(fallback);
+    };
   }, []);
+
+  useEffect(() => {
+    layoutCanvas();
+    sendViewport();
+    const stage = stageRef.current;
+    if (!stage || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      layoutCanvas();
+      sendViewport();
+    });
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [fit, isHost]);
 
   const norm = (clientX: number, clientY: number) => {
     const el = canvasRef.current;
@@ -187,37 +295,52 @@ function RemoteDesktop({ locale, isHost }: { locale: Locale; isHost: boolean }) 
     });
   };
 
+  const flushWheel = () => {
+    if (sendingWheel.current || !pendingWheel.current) return;
+    const w = pendingWheel.current;
+    pendingWheel.current = null;
+    sendingWheel.current = true;
+    void invoke("session_input", { event: { type: "wheel", dx: w.dx, dy: w.dy } }).finally(() => {
+      sendingWheel.current = false;
+      if (pendingWheel.current) requestAnimationFrame(flushWheel);
+    });
+  };
+
   const showPreview = previewScene === "session";
 
   return (
     <div className="desktop-stage">
       <div
         ref={stageRef}
-        className="desktop-canvas remote"
+        className={`desktop-canvas remote${isHost ? "" : " control"}`}
         tabIndex={0}
         onContextMenu={(e) => e.preventDefault()}
-        onMouseEnter={() => canvasRef.current?.focus()}
-        onMouseMove={(e) => {
+        onPointerEnter={() => canvasRef.current?.focus()}
+        onPointerMove={(e) => {
           const p = norm(e.clientX, e.clientY);
           if (!p) return;
           pendingMove.current = p;
           flushMove();
         }}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.preventDefault();
           canvasRef.current?.focus();
+          (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
           const p = norm(e.clientX, e.clientY);
           if (!p) return;
           sendInput({ type: "mouse_down", button: e.button, x: p.x, y: p.y });
         }}
-        onMouseUp={(e) => {
+        onPointerUp={(e) => {
           const p = norm(e.clientX, e.clientY);
           if (!p) return;
           sendInput({ type: "mouse_up", button: e.button, x: p.x, y: p.y });
         }}
         onWheel={(e) => {
           e.preventDefault();
-          sendInput({ type: "wheel", dx: e.deltaX, dy: e.deltaY });
+          const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 120 : 1;
+          const prev = pendingWheel.current || { dx: 0, dy: 0 };
+          pendingWheel.current = { dx: prev.dx + e.deltaX * scale, dy: prev.dy + e.deltaY * scale };
+          flushWheel();
         }}
         onKeyDown={(e) => {
           e.preventDefault();
@@ -275,11 +398,15 @@ export default function App() {
   const [chromeVisible, setChromeVisible] = useState(true);
   const chromeTimer = useRef<number | null>(null);
   const [connectStep, setConnectStep] = useState(0);
-  const [settingsTab, setSettingsTab] = useState(
-    previewScene === "settings" || previewScene === "permissions" ? (previewScene === "permissions" ? "permissions" : "general") : "general",
-  );
+  const [settingsTab, setSettingsTab] = useState(() => {
+    const tab = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
+    if (previewScene === "permissions" || tab === "permissions") return "permissions";
+    if (tab) return tab;
+    return "general";
+  });
   const [perms, setPerms] = useState<PermissionsStatus | null>(null);
   const [toast, setToast] = useState("");
+  const [homePassword, setHomePassword] = useState("");
 
   useEffect(() => {
     if (!isTauri()) {
@@ -351,12 +478,12 @@ export default function App() {
       const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
       const win = getCurrentWindow();
       if (snap.phase === "connected") {
-        await win.setSize(new LogicalSize(980, 720));
-        await win.setMinSize(new LogicalSize(720, 520));
+        await win.setSize(new LogicalSize(1120, 760));
+        await win.setMinSize(new LogicalSize(800, 560));
         return;
       }
-      await win.setMinSize(new LogicalSize(400, 620));
-      await win.setSize(new LogicalSize(440, 720));
+      await win.setMinSize(new LogicalSize(840, 640));
+      await win.setSize(new LogicalSize(900, 700));
     })();
   }, [snap.phase]);
 
@@ -415,7 +542,7 @@ export default function App() {
   }, [locale]);
 
   useEffect(() => {
-    if (snap.last_error) setError(translateError(locale, snap.last_error));
+    setError(snap.last_error ? translateError(locale, snap.last_error) : "");
   }, [snap.last_error, locale]);
 
   useEffect(() => {
@@ -437,10 +564,12 @@ export default function App() {
   };
 
   const copyBoth = async () => {
+    const id = snap.device_id.replace(/\s/g, "");
+    const password = snap.temp_password.replace(/\s/g, "");
     const text =
       locale === "zh"
-        ? `设备码：${snap.formatted_id}\n密码：${hidePassword ? snap.temp_password : snap.formatted_password}`
-        : `Device ID: ${snap.formatted_id}\nPassword: ${hidePassword ? snap.temp_password : snap.formatted_password}`;
+        ? `设备码：${id}\n密码：${password}`
+        : `Device ID: ${id}\nPassword: ${password}`;
     await navigator.clipboard.writeText(text);
     setCopied("both");
     window.setTimeout(() => setCopied(""), 1200);
@@ -553,15 +682,19 @@ export default function App() {
           onMouseMove={bumpChrome}
           onPointerDown={bumpChrome}
         >
-          <RemoteDesktop locale={locale} isHost={snap.is_host} />
+          <RemoteDesktop locale={locale} isHost={snap.is_host} fit={snap.settings.screen_fit || "auto"} />
           {!hideSessionToolbar ? (
             <div className={`session-chrome${chromeVisible ? " show" : ""}`}>
               <div className="session-toolbar">
                 <div className="session-peer">
                   <span className="live-dot" aria-hidden />
                   <strong>{snap.session.peer_name}</strong>
-                  <span className={`pill ${snap.session.path === "p2p" ? "good" : ""}`}>
-                    {snap.session.path === "p2p" ? tr("directP2p") : tr("relay")}
+                  <span className={`pill ${snap.session.path === "p2p" || snap.session.path === "lan" ? "good" : ""}`}>
+                    {snap.session.path === "p2p"
+                      ? tr("directP2p")
+                      : snap.session.path === "lan"
+                        ? tr("lanDirect")
+                        : tr("relay")}
                   </span>
                   <span className={`pill ${latencyTone(snap.session.rtt_ms)}`}>
                     {snap.session.rtt_ms || "—"} ms
@@ -705,81 +838,126 @@ export default function App() {
                 </div>
                 <PlatformBadge os={snap.os} label={osLabel(locale, snap.os)} />
               </div>
-              <div className="device-main-grid">
-                <div className="device-primary">
-                  <div className="id-row">
-                    <h2>{snap.formatted_id}</h2>
-                    <button
-                      type="button"
-                      className={`copy-chip ${copied === "ID" ? "copied" : ""}`}
-                      onClick={() => copy("ID", snap.formatted_id)}
-                    >
-                      {copied === "ID" ? tr("copied") : tr("copyId")}
-                    </button>
-                  </div>
-                  <div className="device-metrics">
-                    <span className={`metric-pill ${snap.ready ? "ready" : "offline"}`}>
-                      <span className="dot" />
-                      {snap.ready ? tr("ready") : tr("connectingNetwork")}
-                    </span>
-                    {snap.ready && <span className="metric-pill">{activeLineLabel}</span>}
-                    {snap.ready && snap.rtt_ms > 0 && (
-                      <span className={`metric-pill latency ${latencyLabel(snap.rtt_ms)}`}>{snap.rtt_ms} ms</span>
-                    )}
-                  </div>
-                  <p className="credential-kicker">{tr("shareCredentials")}</p>
-                </div>
-                <div className="credential-panel compact">
-                  <div className="credential-summary">
-                    <div className="credential-box">
-                      <p className="label">{tr("tempPassword")}</p>
-                      <div className="password-row">
-                        <strong>{hidePassword ? "• • • • • •" : snap.formatted_password}</strong>
-                        <div className="row-actions">
-                          <button
-                            type="button"
-                            className={`copy-chip tiny ${copied === "password" ? "copied" : ""}`}
-                            onClick={() => copy("password", snap.temp_password)}
-                          >
-                            {copied === "password" ? "✓" : tr("copyPassword")}
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            onClick={() => setHidePassword((v) => !v)}
-                            aria-label="Toggle password"
-                          >
-                            {hidePassword ? "○" : "●"}
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            onClick={() =>
-                              run(async () => {
-                                if (isTauri()) {
-                                  const next = await invoke<Snapshot>("refresh_password");
-                                  setSnap(next);
-                                } else {
-                                  setSnap({ ...snap, formatted_password: "K 3 M 8 Q 4", temp_password: "K3M8Q4" });
-                                }
-                              })
+              <div className="id-row">
+                <h2>{snap.formatted_id}</h2>
+                <button
+                  type="button"
+                  className={`copy-chip ${copied === "ID" ? "copied" : ""}`}
+                  onClick={() => copy("ID", snap.formatted_id)}
+                >
+                  {copied === "ID" ? tr("copied") : tr("copyId")}
+                </button>
+              </div>
+              <div className="device-metrics">
+                <span className={`metric-pill ${snap.ready ? "ready" : "offline"}`}>
+                  <span className="dot" />
+                  {snap.ready ? tr("ready") : tr("connectingNetwork")}
+                </span>
+                {snap.ready && <span className="metric-pill">{activeLineLabel}</span>}
+                {snap.ready && snap.rtt_ms > 0 && (
+                  <span className={`metric-pill latency ${latencyLabel(snap.rtt_ms)}`}>{snap.rtt_ms} ms</span>
+                )}
+              </div>
+              <p className="credential-kicker">{tr("shareCredentials")}</p>
+              <div className="credential-panel compact">
+                <div className="credential-box">
+                  <p className="label">{tr("tempPassword")}</p>
+                  <div className="password-row">
+                    <strong>{hidePassword ? "• • • • • •" : snap.formatted_password}</strong>
+                    <div className="row-actions">
+                      <button
+                        type="button"
+                        className={`icon-btn ${copied === "password" ? "copied" : ""}`}
+                        onClick={() => copy("password", snap.temp_password)}
+                        title={tr("copyPassword")}
+                      >
+                        {copied === "password" ? "✓" : "⎘"}
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => setHidePassword((v) => !v)}
+                        aria-label="Toggle password"
+                      >
+                        {hidePassword ? "○" : "●"}
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() =>
+                          run(async () => {
+                            if (isTauri()) {
+                              const next = await invoke<Snapshot>("refresh_password");
+                              setSnap(next);
+                            } else {
+                              setSnap({ ...snap, formatted_password: "K 3 M 8 Q 4", temp_password: "K3M8Q4" });
                             }
-                            title={tr("refreshPassword")}
-                          >
-                            ↻
-                          </button>
-                        </div>
-                      </div>
+                          })
+                        }
+                        title={tr("refreshPassword")}
+                      >
+                        ↻
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className={`copy-all compact ${copied === "both" ? "copied" : ""}`}
-                      onClick={copyBoth}
-                    >
-                      {copied === "both" ? tr("copied") : tr("copyBoth")}
-                    </button>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  className={`copy-all compact ${copied === "both" ? "copied" : ""}`}
+                  onClick={copyBoth}
+                >
+                  {copied === "both" ? tr("copied") : tr("copyBoth")}
+                </button>
+                <label className="custom-password inline">
+                  <span>{tr("customPassword")}</span>
+                  <div className="custom-password-row">
+                    <input
+                      value={homePassword}
+                      onChange={(e) => setHomePassword(e.target.value)}
+                      placeholder={tr("passwordHint")}
+                      maxLength={16}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                      }}
+                      onBlur={() => {
+                        const value = homePassword.trim();
+                        if (!value) return;
+                        if (!/^[A-Za-z0-9]{4,16}$/.test(value)) {
+                          setError(tr("passwordInvalid"));
+                          return;
+                        }
+                        setError("");
+                        if (isTauri()) {
+                          void run(async () => {
+                            await invoke("set_permanent_password", { password: value });
+                          });
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="ghost save-password"
+                      onClick={() => {
+                        const value = homePassword.trim();
+                        if (!value) return;
+                        if (!/^[A-Za-z0-9]{4,16}$/.test(value)) {
+                          setError(tr("passwordInvalid"));
+                          return;
+                        }
+                        setError("");
+                        if (isTauri()) {
+                          void run(async () => {
+                            await invoke("set_permanent_password", { password: value });
+                            setToast(tr("saved"));
+                            window.setTimeout(() => setToast(""), 1400);
+                          });
+                        }
+                      }}
+                    >
+                      {tr("savePassword")}
+                    </button>
+                  </div>
+                </label>
               </div>
             </section>
 
@@ -822,52 +1000,54 @@ export default function App() {
             </aside>
           </section>
 
-          {(snap.nearby?.length > 0 || snap.recents.length > 0) && (
-            <section className="home-lists">
-              {snap.nearby && snap.nearby.length > 0 && (
-                <section className="recents card">
-                  <p className="label">{tr("nearby")}</p>
-                  {snap.nearby.map((item) => (
-                    <DeviceListItem
-                      key={item.id}
-                      locale={locale}
-                      name={item.name}
-                      os={item.os}
-                      deviceId={item.id}
-                      trailing={<span className="dot ready" />}
-                      onClick={() => {
-                        setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
-                        setPasswordStep(true);
-                      }}
-                    />
-                  ))}
-                </section>
-              )}
-
-              {snap.recents.length > 0 && (
-                <section className="recents card">
-                  <p className="label">{tr("recent")}</p>
-                  {snap.recents.map((item) => (
-                    <DeviceListItem
-                      key={item.id}
-                      locale={locale}
-                      name={item.name}
-                      os={item.os}
-                      deviceId={item.id}
-                      favorite={item.favorite}
-                      trailing={<span className="chevron">→</span>}
-                      onClick={() => {
-                        setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
-                        setPasswordStep(true);
-                      }}
-                    />
-                  ))}
-                </section>
+          <section className="home-lists">
+            <section className="recents card">
+              <p className="label">{tr("nearby")}</p>
+              {snap.nearby && snap.nearby.length > 0 ? (
+                snap.nearby.map((item) => (
+                  <DeviceListItem
+                    key={item.id}
+                    locale={locale}
+                    name={item.name}
+                    os={item.os}
+                    deviceId={item.id}
+                    trailing={<span className="dot ready" />}
+                    onClick={() => {
+                      setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
+                      setPasswordStep(true);
+                    }}
+                  />
+                ))
+              ) : (
+                <p className="list-empty">{tr("emptyNearby")}</p>
               )}
             </section>
-          )}
 
-          <footer>RemoteX v2.0.1</footer>
+            <section className="recents card">
+              <p className="label">{tr("recent")}</p>
+              {snap.recents.length > 0 ? (
+                snap.recents.map((item) => (
+                  <DeviceListItem
+                    key={item.id}
+                    locale={locale}
+                    name={item.name}
+                    os={item.os}
+                    deviceId={item.id}
+                    favorite={item.favorite}
+                    trailing={<span className="chevron">→</span>}
+                    onClick={() => {
+                      setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
+                      setPasswordStep(true);
+                    }}
+                  />
+                ))
+              ) : (
+                <p className="list-empty">{tr("emptyRecent")}</p>
+              )}
+            </section>
+          </section>
+
+          <footer>RemoteX v2.0.2</footer>
         </main>
       )}
 
@@ -1161,7 +1341,10 @@ function Settings({
   return (
     <main className="settings">
       <header className="settings-head">
-        <button className="back" onClick={onBack}>← {tr("back")}</button>
+        <button type="button" className="back" onClick={onBack}>
+          <span className="back-arrow" aria-hidden>←</span>
+          {tr("back")}
+        </button>
         <h1>{tr("settings")}</h1>
       </header>
       <div className="settings-shell">
@@ -1195,12 +1378,6 @@ function Settings({
                   hint={tr("minimizeToTrayHint")}
                   checked={snap.settings.minimize_to_tray}
                   onChange={(v) => onSettings({ minimize_to_tray: v })}
-                />
-                <SettingToggle
-                  label={tr("autoUpdate")}
-                  hint={tr("autoUpdateHint")}
-                  checked={snap.settings.auto_update}
-                  onChange={(v) => onSettings({ auto_update: v })}
                 />
               </SettingsSection>
               <SettingsSection title={tr("language")}>
@@ -1245,18 +1422,37 @@ function Settings({
                   onPick={(line) => onSettings({ signaling_line: line, settings_rev: 1 })}
                 />
               </SettingsSection>
-              <SettingsSection title={tr("tabConnection")}>
+              <SettingsSection title={tr("preferLan")} subtitle={tr("preferLanHint")}>
                 <SettingToggle
-                  label={tr("preferP2p")}
-                  hint={tr("preferP2pHint")}
-                  checked={snap.settings.p2p_preferred}
-                  onChange={(v) => onSettings({ p2p_preferred: v })}
+                  label={tr("preferLan")}
+                  hint={tr("preferLanHint")}
+                  checked={snap.settings.prefer_lan !== false}
+                  onChange={(v) => onSettings({ prefer_lan: v })}
                 />
-                <SettingToggle
-                  label={tr("hardwareEncode")}
-                  hint={tr("hardwareEncodeHint")}
-                  checked={snap.settings.hardware_encode}
-                  onChange={(v) => onSettings({ hardware_encode: v })}
+              </SettingsSection>
+              <SettingsSection title={tr("screenFit")} subtitle={tr("screenFitHint")}>
+                <SettingSelect
+                  label={tr("screenFit")}
+                  value={snap.settings.screen_fit || "auto"}
+                  options={[
+                    { value: "auto", label: tr("fitAuto") },
+                    { value: "fill", label: tr("fitFill") },
+                    { value: "original", label: tr("fitOriginal") },
+                  ]}
+                  onChange={(v) => onSettings({ screen_fit: v })}
+                />
+              </SettingsSection>
+              <SettingsSection title={tr("captureResolution")} subtitle={tr("captureResolutionHint")}>
+                <SettingSelect
+                  label={tr("resolution")}
+                  value={snap.settings.resolution || "auto"}
+                  options={[
+                    { value: "auto", label: tr("auto") },
+                    { value: "720p", label: tr("res720") },
+                    { value: "1080p", label: tr("res1080") },
+                    { value: "original", label: tr("qualityOriginal") },
+                  ]}
+                  onChange={(v) => onSettings({ resolution: v })}
                 />
               </SettingsSection>
               {snap.lan_url && (
@@ -1378,7 +1574,7 @@ function Settings({
               <h2>RemoteX</h2>
               <p>{tr("aboutTagline")}</p>
               <p className="muted">{tr("aboutNote")}</p>
-              <p className="about-version">v2.0.1 · macOS / Windows</p>
+              <p className="about-version">v2.0.2 · macOS / Windows</p>
               <div className="about-features">
                 <p className="eyebrow">{tr("aboutFeaturesTitle")}</p>
                 <ul>
@@ -1595,8 +1791,8 @@ function osLabel(locale: Locale, os: string) {
 
 function latencyLabel(ms: number) {
   if (!ms) return "";
-  if (ms < 45) return "good";
-  if (ms < 90) return "ok";
+  if (ms < 80) return "good";
+  if (ms < 220) return "ok";
   return "bad";
 }
 
@@ -1673,19 +1869,29 @@ function SettingSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="set-item set-item-select">
+    <div className="set-item set-item-select">
       <div className="set-item-copy">
         <strong>{label}</strong>
         {hint && <p className="set-item-hint">{hint}</p>}
       </div>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </label>
+      <div className="choice-switch" role="radiogroup" aria-label={label}>
+        {options.map((opt) => {
+          const on = String(opt.value) === String(value);
+          return (
+            <button
+              key={String(opt.value)}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              className={on ? "on" : ""}
+              onClick={() => onChange(String(opt.value))}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

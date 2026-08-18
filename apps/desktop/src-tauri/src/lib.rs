@@ -11,6 +11,8 @@ use tauri::{
 };
 use tokio::sync::Mutex;
 
+mod autostart;
+
 pub type SharedState = Arc<Mutex<AppState>>;
 
 #[derive(Serialize)]
@@ -102,6 +104,7 @@ async fn save_settings(
 ) -> Result<(), CommandError> {
     let mut guard = state.lock().await;
     guard.update_settings(settings).await?;
+    autostart::apply(guard.snapshot().settings.start_at_login);
     emit_snapshot(&app, &guard).await;
     Ok(())
 }
@@ -145,7 +148,7 @@ async fn session_input(
     state: State<'_, SharedState>,
     event: InputEvent,
 ) -> Result<(), CommandError> {
-    let Some((session_id, priority, peer_priority)) = state.lock().await.input_route() else {
+    let Some((session_id, priority, peer_priority, lan_priority)) = state.lock().await.input_route() else {
         return Ok(());
     };
     let lossy = matches!(event, InputEvent::MouseMove { .. } | InputEvent::Wheel { .. });
@@ -154,9 +157,20 @@ async fn session_input(
         event,
         &priority,
         peer_priority.as_ref(),
+        lan_priority.as_ref(),
         lossy,
     )
     .await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn session_viewport(
+    state: State<'_, SharedState>,
+    width: u32,
+    height: u32,
+) -> Result<(), CommandError> {
+    state.lock().await.send_viewport(width, height).await?;
     Ok(())
 }
 
@@ -258,6 +272,12 @@ pub fn run() {
                     .expect("failed to start RemoteX")
             });
             app.manage(state.clone());
+            {
+                let login = tauri::async_runtime::block_on(async {
+                    state.lock().await.snapshot().settings.start_at_login
+                });
+                autostart::apply(login);
+            }
 
             {
                 let snap = tauri::async_runtime::block_on(async { state.lock().await.snapshot_async().await });
@@ -338,8 +358,20 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                let minimize = window
+                    .try_state::<SharedState>()
+                    .map(|state| {
+                        tauri::async_runtime::block_on(async {
+                            state.lock().await.snapshot().settings.minimize_to_tray
+                        })
+                    })
+                    .unwrap_or(true);
+                if minimize {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else {
+                    window.app_handle().exit(0);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -359,6 +391,7 @@ pub fn run() {
             request_screen_recording,
             open_permission_settings,
             session_input,
+            session_viewport,
             set_session_quality,
             session_pick_send_file,
             session_send_file,
