@@ -87,7 +87,7 @@ export interface Snapshot {
 }
 
 export const defaultSettings = (): AppSettings => ({
-  signaling_url: "ws://23.226.134.88:7829/ws",
+  signaling_url: "ws://127.0.0.1:7829/ws",
   language: "system",
   theme: "system",
   start_at_login: false,
@@ -113,7 +113,7 @@ export const mockSnapshot = (): Snapshot => ({
   formatted_password: "X 7 F 9 K 2",
   ready: true,
   rtt_ms: 18,
-  signaling_url: "ws://23.226.134.88:7829/ws",
+  signaling_url: "ws://127.0.0.1:7829/ws",
   lan_url: "ws://192.168.1.18:7829/ws",
   hosting: true,
   phase: "idle",

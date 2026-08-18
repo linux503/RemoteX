@@ -54,9 +54,7 @@ impl AppSettings {
         }
         let raw = std::fs::read_to_string(path)?;
         let mut settings: Self = serde_json::from_str(&raw)?;
-        if crate::lan::is_fake_vpn_signaling(&settings.signaling_url)
-            || is_local_signaling(&settings.signaling_url)
-        {
+        if crate::lan::is_fake_vpn_signaling(&settings.signaling_url) {
             settings.signaling_url = default_signaling_url();
             let _ = settings.save(dir);
         }
@@ -72,11 +70,7 @@ impl AppSettings {
 
 pub fn default_signaling_url() -> String {
     std::env::var("REMOTEX_SIGNALING")
-        .unwrap_or_else(|_| "ws://23.226.134.88:7829/ws".into())
-}
-
-fn is_local_signaling(url: &str) -> bool {
-    url.contains("127.0.0.1") || url.contains("localhost") || url.contains("[::1]")
+        .unwrap_or_else(|_| "ws://127.0.0.1:7829/ws".into())
 }
 
 fn settings_path(dir: &Path) -> PathBuf {
