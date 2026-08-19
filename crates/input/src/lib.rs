@@ -169,6 +169,7 @@ mod platform {
             "Enter" | "NumpadEnter" => 0x24,
             "Escape" => 0x35,
             "Backspace" => 0x33,
+            "CapsLock" => 0x39,
             "Tab" => 0x30,
             "Space" => 0x31,
             "ArrowLeft" => 0x7B,
@@ -176,10 +177,12 @@ mod platform {
             "ArrowDown" => 0x7D,
             "ArrowUp" => 0x7E,
             "Delete" => 0x75,
+            "Insert" => 0x72,
             "Home" => 0x73,
             "End" => 0x77,
             "PageUp" => 0x74,
             "PageDown" => 0x79,
+            "Backquote" => 0x32,
             "Minus" => 0x1B,
             "Equal" => 0x18,
             "BracketLeft" => 0x21,
@@ -190,6 +193,33 @@ mod platform {
             "Comma" => 0x2B,
             "Period" => 0x2F,
             "Slash" => 0x2C,
+            "Numpad0" => 0x52,
+            "Numpad1" => 0x53,
+            "Numpad2" => 0x54,
+            "Numpad3" => 0x55,
+            "Numpad4" => 0x56,
+            "Numpad5" => 0x57,
+            "Numpad6" => 0x58,
+            "Numpad7" => 0x59,
+            "Numpad8" => 0x5B,
+            "Numpad9" => 0x5C,
+            "NumpadDecimal" => 0x41,
+            "NumpadAdd" => 0x45,
+            "NumpadSubtract" => 0x4E,
+            "NumpadMultiply" => 0x43,
+            "NumpadDivide" => 0x4B,
+            "F1" => 0x7A,
+            "F2" => 0x78,
+            "F3" => 0x63,
+            "F4" => 0x76,
+            "F5" => 0x60,
+            "F6" => 0x61,
+            "F7" => 0x62,
+            "F8" => 0x64,
+            "F9" => 0x65,
+            "F10" => 0x6D,
+            "F11" => 0x67,
+            "F12" => 0x6F,
             "MetaLeft" | "MetaRight" => 0x37,
             "ShiftLeft" | "ShiftRight" => 0x38,
             "ControlLeft" | "ControlRight" => 0x3B,
@@ -252,18 +282,19 @@ mod platform {
                 };
                 post(evt);
             }
-            InputEvent::Wheel { dy, .. } => {
-                let delta = (*dy * 3.0).round() as i32;
-                if delta == 0 {
+            InputEvent::Wheel { dx, dy } => {
+                let delta_y = (*dy * 3.0).round() as i32;
+                let delta_x = (*dx * 3.0).round() as i32;
+                if delta_x == 0 && delta_y == 0 {
                     return;
                 }
                 let evt = unsafe {
                     CGEventCreateScrollWheelEvent(
                         ptr::null_mut(),
                         K_CG_SCROLL_EVENT_UNIT_LINE,
-                        1,
-                        delta,
-                        0,
+                        2,
+                        delta_y,
+                        delta_x,
                         0,
                     )
                 };
@@ -290,7 +321,7 @@ mod platform {
         SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP,
         MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
         MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
-        MOUSEEVENTF_WHEEL, MOUSEINPUT, VIRTUAL_KEY,
+        MOUSEEVENTF_HWHEEL, MOUSEEVENTF_WHEEL, MOUSEINPUT, VIRTUAL_KEY,
     };
 
     fn abs_point(x: f32, y: f32) -> (i32, i32) {
@@ -347,6 +378,7 @@ mod platform {
             "Enter" | "NumpadEnter" => 0x0D,
             "Escape" => 0x1B,
             "Backspace" => 0x08,
+            "CapsLock" => 0x14,
             "Tab" => 0x09,
             "Space" => 0x20,
             "ArrowLeft" => 0x25,
@@ -354,10 +386,54 @@ mod platform {
             "ArrowDown" => 0x28,
             "ArrowUp" => 0x26,
             "Delete" => 0x2E,
+            "Insert" => 0x2D,
             "Home" => 0x24,
             "End" => 0x23,
             "PageUp" => 0x21,
             "PageDown" => 0x22,
+            "Backquote" => 0xC0,
+            "Minus" => 0xBD,
+            "Equal" => 0xBB,
+            "BracketLeft" => 0xDB,
+            "BracketRight" => 0xDD,
+            "Backslash" => 0xDC,
+            "Semicolon" => 0xBA,
+            "Quote" => 0xDE,
+            "Comma" => 0xBC,
+            "Period" => 0xBE,
+            "Slash" => 0xBF,
+            "MetaLeft" | "MetaRight" => 0x5B,
+            "ShiftLeft" | "ShiftRight" => 0x10,
+            "ControlLeft" | "ControlRight" => 0x11,
+            "AltLeft" | "AltRight" => 0x12,
+            "ContextMenu" => 0x5D,
+            "Numpad0" => 0x60,
+            "Numpad1" => 0x61,
+            "Numpad2" => 0x62,
+            "Numpad3" => 0x63,
+            "Numpad4" => 0x64,
+            "Numpad5" => 0x65,
+            "Numpad6" => 0x66,
+            "Numpad7" => 0x67,
+            "Numpad8" => 0x68,
+            "Numpad9" => 0x69,
+            "NumpadDecimal" => 0x6E,
+            "NumpadAdd" => 0x6B,
+            "NumpadSubtract" => 0x6D,
+            "NumpadMultiply" => 0x6A,
+            "NumpadDivide" => 0x6F,
+            "F1" => 0x70,
+            "F2" => 0x71,
+            "F3" => 0x72,
+            "F4" => 0x73,
+            "F5" => 0x74,
+            "F6" => 0x75,
+            "F7" => 0x76,
+            "F8" => 0x77,
+            "F9" => 0x78,
+            "F10" => 0x79,
+            "F11" => 0x7A,
+            "F12" => 0x7B,
             _ => return None,
         })
     }
@@ -410,25 +486,43 @@ mod platform {
                 };
                 send(&[input]);
             }
-            InputEvent::Wheel { dy, .. } => {
-                let delta = (*dy * 120.0) as i32;
-                if delta == 0 {
-                    return;
-                }
-                let input = INPUT {
-                    r#type: INPUT_MOUSE,
-                    Anonymous: INPUT_0 {
-                        mi: MOUSEINPUT {
-                            dx: 0,
-                            dy: 0,
-                            mouseData: delta as u32,
-                            dwFlags: MOUSEEVENTF_WHEEL,
-                            time: 0,
-                            dwExtraInfo: 0,
+            InputEvent::Wheel { dx, dy } => {
+                let mut inputs = Vec::with_capacity(2);
+                let delta_y = (*dy * 120.0) as i32;
+                let delta_x = (*dx * 120.0) as i32;
+                if delta_y != 0 {
+                    inputs.push(INPUT {
+                        r#type: INPUT_MOUSE,
+                        Anonymous: INPUT_0 {
+                            mi: MOUSEINPUT {
+                                dx: 0,
+                                dy: 0,
+                                mouseData: delta_y as u32,
+                                dwFlags: MOUSEEVENTF_WHEEL,
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
                         },
-                    },
-                };
-                send(&[input]);
+                    });
+                }
+                if delta_x != 0 {
+                    inputs.push(INPUT {
+                        r#type: INPUT_MOUSE,
+                        Anonymous: INPUT_0 {
+                            mi: MOUSEINPUT {
+                                dx: 0,
+                                dy: 0,
+                                mouseData: delta_x as u32,
+                                dwFlags: MOUSEEVENTF_HWHEEL,
+                                time: 0,
+                                dwExtraInfo: 0,
+                            },
+                        },
+                    });
+                }
+                if !inputs.is_empty() {
+                    send(&inputs);
+                }
             }
             InputEvent::KeyDown { key, .. } | InputEvent::KeyUp { key, .. } => {
                 let Some(vk) = vk(key) else { return };

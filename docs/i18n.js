@@ -6,7 +6,7 @@ const copy = {
     navFeatures: "Features",
     navDownload: "Download",
     getApp: "Download",
-    eyebrow: "v2.0.5",
+    eyebrow: "v2.0.6",
     heroTitle: "A device ID is enough.",
     heroLead: "No account. Copy the ID, enter the password, connect. Windows and macOS.",
     downloadRemoteX: "Download",
@@ -54,12 +54,15 @@ const copy = {
     dlWinDesc: "Windows 10 and 11. Current user install, no admin prompt.",
     dlWinBtn: "Download for Windows",
     dlAll: "All releases",
-    dlVersion: "Version v2.0.5",
+    dlVersion: "Version v2.0.6",
     macFixTitle: "macOS says it’s damaged?",
     macFixDesc: "Unsigned GitHub builds get quarantined by Chrome. Drag RemoteX into Applications, then paste this in Terminal:",
     copyCmd: "Copy",
     copiedCmd: "Copied",
     footerTag: "RemoteX for Windows and macOS",
+    themeDark: "Dark",
+    themeLight: "Light",
+    ogImageAlt: "RemoteX remote desktop preview",
     title: "RemoteX | Fast remote desktop for Windows and macOS",
     seoTitle: "RemoteX | Fast Remote Desktop | 极速远程桌面",
     description: "No account. No setup. Just connect. RemoteX is a fast P2P remote desktop for Windows and macOS. Copy a device ID and connect in seconds.",
@@ -70,7 +73,7 @@ const copy = {
     navFeatures: "功能",
     navDownload: "下载",
     getApp: "下载",
-    eyebrow: "v2.0.5",
+    eyebrow: "v2.0.6",
     heroTitle: "设备码就够了。",
     heroLead: "无需账号。复制设备码，输入密码，直接连接。Windows 与 macOS。",
     downloadRemoteX: "下载",
@@ -118,12 +121,15 @@ const copy = {
     dlWinDesc: "Windows 10 / 11。当前用户安装，不用管理员密码。",
     dlWinBtn: "下载 Windows 版",
     dlAll: "全部版本",
-    dlVersion: "当前版本 v2.0.5",
+    dlVersion: "当前版本 v2.0.6",
     macFixTitle: "Mac 提示已损坏 / 移到废纸篓？",
     macFixDesc: "从浏览器下载的未公证应用会被隔离。先把 RemoteX 拖进「应用程序」，再把下面命令粘贴到终端回车：",
     copyCmd: "复制",
     copiedCmd: "已复制",
     footerTag: "RemoteX，面向 Windows 与 macOS",
+    themeDark: "深色",
+    themeLight: "浅色",
+    ogImageAlt: "RemoteX 远程桌面预览图",
     title: "RemoteX | 极速远程桌面，Windows 与 macOS 跨平台",
     seoTitle: "RemoteX | 极速远程桌面 | Fast Remote Desktop",
     description: "无需注册，无需登录。RemoteX 是面向 Windows 与 macOS 的极速 P2P 远程桌面，复制设备码即可连接。",
@@ -144,6 +150,22 @@ function detectLang() {
   return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
+function detectTheme() {
+  const saved = localStorage.getItem("remotex-theme");
+  if (saved === "dark" || saved === "light") return saved;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function applyTheme(theme) {
+  const next = theme === "light" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  setMeta('meta[name="theme-color"]', "content", next === "light" ? "#f5f0ec" : "#0c0c0e");
+  document.querySelectorAll(".theme-toggle button").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-theme") === next);
+  });
+  localStorage.setItem("remotex-theme", next);
+}
+
 function applyLang(lang) {
   const dict = copy[lang] || copy.en;
   const pageUrl = `${SITE}?lang=${lang}`;
@@ -156,6 +178,7 @@ function applyLang(lang) {
   setMeta('meta[property="og:url"]', "content", pageUrl);
   setMeta('meta[name="twitter:title"]', "content", dict.seoTitle);
   setMeta('meta[name="twitter:description"]', "content", dict.description);
+  setMeta('meta[name="twitter:url"]', "content", pageUrl);
   const canonical = document.getElementById("canonical");
   if (canonical) canonical.setAttribute("href", pageUrl);
   const jsonld = document.getElementById("jsonld");
@@ -182,12 +205,19 @@ function applyLang(lang) {
   });
   document.querySelectorAll("[data-i18n-src]").forEach((el) => {
     const key = el.getAttribute("data-i18n-src");
-    if (key) el.src = `./shots/${lang}/${key}.png?v=20260819b`;
+    if (key) el.src = `./shots/${lang}/${key}.png?v=20260819d`;
   });
   setMeta('meta[property="og:image"]', "content", `${SITE}og-${lang}.png`);
+  setMeta('meta[property="og:image:secure_url"]', "content", `${SITE}og-${lang}.png`);
+  setMeta('meta[property="og:image:alt"]', "content", dict.ogImageAlt);
   setMeta('meta[name="twitter:image"]', "content", `${SITE}og-${lang}.png`);
+  setMeta('meta[name="twitter:image:alt"]', "content", dict.ogImageAlt);
   document.querySelectorAll(".lang-toggle button").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-lang") === lang);
+  });
+  document.querySelectorAll(".theme-toggle button").forEach((btn) => {
+    const theme = btn.getAttribute("data-theme");
+    btn.textContent = theme === "light" ? dict.themeLight : dict.themeDark;
   });
   const copyBtn = document.querySelector(".copy-cmd");
   if (copyBtn) {
@@ -202,7 +232,11 @@ function applyLang(lang) {
 }
 
 const current = detectLang();
+applyTheme(detectTheme());
 applyLang(current);
 document.querySelectorAll(".lang-toggle button").forEach((btn) => {
   btn.addEventListener("click", () => applyLang(btn.getAttribute("data-lang")));
+});
+document.querySelectorAll(".theme-toggle button").forEach((btn) => {
+  btn.addEventListener("click", () => applyTheme(btn.getAttribute("data-theme")));
 });

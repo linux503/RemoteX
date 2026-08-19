@@ -9,6 +9,7 @@
     <meta name="author" content="RemoteX" />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#0c0c0e" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="application-name" content="RemoteX" />
     <meta name="apple-mobile-web-app-title" content="RemoteX" />
     <link rel="canonical" id="canonical" href="https://linux503.github.io/RemoteX/" />
@@ -23,14 +24,20 @@
     <meta property="og:title" content="RemoteX | Fast Remote Desktop | 极速远程桌面" />
     <meta property="og:description" content="No account. No setup. Just connect. 无需注册，输入设备码即可远程连接。" />
     <meta property="og:image" content="https://linux503.github.io/RemoteX/og-en.png" />
+    <meta property="og:image:secure_url" content="https://linux503.github.io/RemoteX/og-en.png" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="RemoteX remote desktop preview" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:locale:alternate" content="zh_CN" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://linux503.github.io/RemoteX/" />
+    <meta name="twitter:site" content="@linux503" />
     <meta name="twitter:title" content="RemoteX | Fast Remote Desktop | 极速远程桌面" />
     <meta name="twitter:description" content="No account. No setup. Just connect. 无需注册，输入设备码即可远程连接。" />
     <meta name="twitter:image" content="https://linux503.github.io/RemoteX/og-en.png" />
+    <meta name="twitter:image:alt" content="RemoteX remote desktop preview" />
     <script type="application/ld+json" id="jsonld">
       {
         "@context": "https://schema.org",
@@ -45,10 +52,10 @@
         "inLanguage": ["en", "zh-CN"],
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "downloadUrl": "https://github.com/linux503/RemoteX/releases/latest",
-        "softwareVersion": "2.0.5"
+        "softwareVersion": "2.0.6"
       }
     </script>
-    <link rel="stylesheet" href="./site.css?v=20260819c" />
+    <link rel="stylesheet" href="./site.css?v=20260819d" />
   </head>
   <body>
     <!-- ====== NAV ====== -->
@@ -68,6 +75,10 @@
           <div class="lang-toggle" role="group" aria-label="Language">
             <button type="button" data-lang="en">EN</button>
             <button type="button" data-lang="zh">中文</button>
+          </div>
+          <div class="theme-toggle" role="group" aria-label="Theme">
+            <button type="button" data-theme="dark">Dark</button>
+            <button type="button" data-theme="light">Light</button>
           </div>
           <a class="nav-cta" href="#download" data-i18n="downloadRemoteX">Download</a>
         </div>
@@ -186,8 +197,8 @@
           </div>
           <h3 data-i18n="dlMacTitle">Download for Mac</h3>
           <p data-i18n="dlMacDesc">Universal installer for Apple Silicon and Intel. Follow the smart permission guide inside the app.</p>
-          <a class="btn-primary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_2.0.5_universal.dmg" data-i18n="dlMacBtn">Download for Mac</a>
-          <span class="dl-ver" data-i18n="dlVersion">Version v2.0.5</span>
+          <a class="btn-primary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_2.0.6_universal.dmg" data-i18n="dlMacBtn">Download for Mac</a>
+          <span class="dl-ver" data-i18n="dlVersion">Version v2.0.6</span>
         </article>
         <article class="dl-card reveal">
           <div class="dl-os">
@@ -197,10 +208,10 @@
           <h3 data-i18n="dlWinTitle">Download for Windows</h3>
           <p data-i18n="dlWinDesc">Windows 10 / 11. No admin password needed.</p>
           <div class="dl-btns">
-            <a class="btn-primary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_2.0.5_x64-setup.exe" data-i18n="dlWinBtn">Windows Installer</a>
+            <a class="btn-primary" href="https://github.com/linux503/RemoteX/releases/latest/download/RemoteX_2.0.6_x64-setup.exe" data-i18n="dlWinBtn">Windows Installer</a>
             <a class="btn-ghost" href="https://github.com/linux503/RemoteX/releases/latest" data-i18n="dlAll">All releases</a>
           </div>
-            <span class="dl-ver" data-i18n="dlVersion">Version v2.0.5</span>
+            <span class="dl-ver" data-i18n="dlVersion">Version v2.0.6</span>
         </article>
       </div>
     </section>
@@ -213,7 +224,17 @@
       </div>
     </footer>
 
-    <script src="./i18n.js?v=20260819c"></script>
+    <script>
+      (function () {
+        const saved = localStorage.getItem("remotex-theme");
+        const preferLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+        const theme = saved === "light" || saved === "dark" ? saved : (preferLight ? "light" : "dark");
+        document.documentElement.setAttribute("data-theme", theme);
+        const themeMeta = document.querySelector('meta[name="theme-color"]');
+        if (themeMeta) themeMeta.setAttribute("content", theme === "light" ? "#f5f0ec" : "#0c0c0e");
+      })();
+    </script>
+    <script src="./i18n.js?v=20260819d"></script>
     <script>
       const io = new IntersectionObserver((entries) => {
         entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("in"); });

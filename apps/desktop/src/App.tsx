@@ -22,6 +22,18 @@ function latencyTone(ms: number) {
   return "bad";
 }
 
+function mapKeyForTarget(code: string, targetOs?: string | null) {
+  if (targetOs === "windows") {
+    if (code === "MetaLeft") return "ControlLeft";
+    if (code === "MetaRight") return "ControlRight";
+  }
+  if (targetOs === "macos") {
+    if (code === "ControlLeft") return "MetaLeft";
+    if (code === "ControlRight") return "MetaRight";
+  }
+  return code;
+}
+
 const mockPermissions = (): PermissionsStatus => {
   const scene = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("scene") : null;
   const denied = scene === "permissions";
@@ -141,10 +153,12 @@ function RemoteDesktop({
   locale,
   isHost,
   fit,
+  peerOs,
 }: {
   locale: Locale;
   isHost: boolean;
   fit: string;
+  peerOs?: string | null;
 }) {
   const [waiting, setWaiting] = useState(true);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -354,11 +368,11 @@ function RemoteDesktop({
         onKeyDown={(e) => {
           e.preventDefault();
           if (e.repeat) return;
-          sendInput({ type: "key_down", key: e.code, modifiers: modifierBits(e) });
+          sendInput({ type: "key_down", key: mapKeyForTarget(e.code, peerOs), modifiers: modifierBits(e) });
         }}
         onKeyUp={(e) => {
           e.preventDefault();
-          sendInput({ type: "key_up", key: e.code, modifiers: modifierBits(e) });
+          sendInput({ type: "key_up", key: mapKeyForTarget(e.code, peerOs), modifiers: modifierBits(e) });
         }}
       >
         <canvas ref={canvasRef} className={`remote-canvas${waiting ? "" : " in"}`} />
@@ -714,7 +728,12 @@ export default function App() {
           onMouseMove={bumpChrome}
           onPointerDown={bumpChrome}
         >
-          <RemoteDesktop locale={locale} isHost={snap.is_host} fit={snap.settings.screen_fit || "auto"} />
+          <RemoteDesktop
+            locale={locale}
+            isHost={snap.is_host}
+            fit={snap.settings.screen_fit || "auto"}
+            peerOs={snap.session.peer_os}
+          />
           {!hideSessionToolbar ? (
             <div className={`session-chrome${chromeVisible ? " show" : ""}`}>
               <div className="session-toolbar">
@@ -1058,6 +1077,20 @@ export default function App() {
                     deviceId={item.id}
                     favorite={item.favorite}
                     trailing={<span className="chevron">→</span>}
+                    onToggleFavorite={() =>
+                      run(async () => {
+                        if (isTauri()) {
+                          await invoke("toggle_favorite", { id: item.id });
+                          return;
+                        }
+                        setSnap((prev) => ({
+                          ...prev,
+                          recents: prev.recents.map((entry) =>
+                            entry.id === item.id ? { ...entry, favorite: !entry.favorite } : entry,
+                          ),
+                        }));
+                      })
+                    }
                     onClick={() => {
                       setConnectId(item.id.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3"));
                       setPasswordStep(true);
@@ -1365,6 +1398,7 @@ function DeviceListItem({
   favorite,
   trailing,
   onClick,
+  onToggleFavorite,
 }: {
   locale: Locale;
   name: string;
@@ -1373,30 +1407,49 @@ function DeviceListItem({
   favorite?: boolean;
   trailing: ReactNode;
   onClick: () => void;
+  onToggleFavorite?: () => void;
 }) {
   const tr = (key: MessageKey) => t(locale, key);
   const kind = platformKind(os);
   const osLabel = kind === "macos" ? tr("osMac") : kind === "windows" ? tr("osWindows") : os;
 
   return (
-    <button type="button" className="recent-item" onClick={onClick}>
-      <PlatformBadge os={os} label={osLabel} />
-      <div className="recent-main">
-        <span className="recent-name">
-          {favorite ? (
-            <svg className="fav-mark" viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-              <path d="M8 2.4l1.7 3.4 3.8.6-2.7 2.7.6 3.8L8 11.1 4.6 12.9l.6-3.8L2.5 6.4l3.8-.6L8 2.4z" fill="currentColor" />
-            </svg>
-          ) : null}
-          {name}
-        </span>
-        <span className="recent-meta">
-          <span className={`platform-tag ${kind}`}>{osLabel}</span>
-          <span className="recent-id">{deviceId.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3")}</span>
-        </span>
-      </div>
-      {trailing}
-    </button>
+    <div className="recent-item-wrap">
+      <button type="button" className="recent-item" onClick={onClick}>
+        <PlatformBadge os={os} label={osLabel} />
+        <div className="recent-main">
+          <span className="recent-name">
+            {favorite ? (
+              <svg className="fav-mark" viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+                <path d="M8 2.4l1.7 3.4 3.8.6-2.7 2.7.6 3.8L8 11.1 4.6 12.9l.6-3.8L2.5 6.4l3.8-.6L8 2.4z" fill="currentColor" />
+              </svg>
+            ) : null}
+            {name}
+          </span>
+          <span className="recent-meta">
+            <span className={`platform-tag ${kind}`}>{osLabel}</span>
+            <span className="recent-id">{deviceId.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3")}</span>
+          </span>
+        </div>
+        {trailing}
+      </button>
+      {onToggleFavorite ? (
+        <button
+          type="button"
+          className={`recent-fav-btn${favorite ? " on" : ""}`}
+          aria-label={favorite ? tr("unfavorite") : tr("favorite")}
+          title={favorite ? tr("unfavorite") : tr("favorite")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+            <path d="M8 2.4l1.7 3.4 3.8.6-2.7 2.7.6 3.8L8 11.1 4.6 12.9l.6-3.8L2.5 6.4l3.8-.6L8 2.4z" fill="currentColor" />
+          </svg>
+        </button>
+      ) : null}
+    </div>
   );
 }
 

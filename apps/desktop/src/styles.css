@@ -852,6 +852,10 @@ input:focus, select:focus {
 
 .error { color: var(--danger); font-size: 13px; }
 
+.recent-item-wrap {
+  position: relative;
+}
+
 .recent-item {
   width: 100%;
   border: 1px solid transparent;
@@ -981,6 +985,32 @@ input:focus, select:focus {
   color: var(--accent);
   flex-shrink: 0;
 }
+
+.recent-fav-btn {
+  position: absolute;
+  top: 50%;
+  right: 34px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.recent-fav-btn:hover {
+  background: rgba(194, 65, 74, 0.12);
+  color: var(--accent);
+}
+
+.recent-fav-btn.on {
+  color: var(--accent);
+}
+
 .chevron { color: var(--muted); }
 footer {
   margin-top: 10px;

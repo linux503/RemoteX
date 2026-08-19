@@ -43,10 +43,10 @@ jobs:
           releaseName: RemoteX ${{ github.ref_name }}
           releaseBody: |
             ## RemoteX ${{ github.ref_name }}
-            - Fix cancel-during-connect sending an empty hangup
-            - Show real session bandwidth instead of fake numbers
-            - Faster frame decode, streamed file send, and macOS capture cooldown
-            - Longer peer timeout so brief stalls no longer drop the session
+            - Add quick favorites in Recent devices
+            - Improve cross-platform keyboard and wheel input
+            - Add light website theme with manual toggle
+            - Improve page title and social sharing metadata
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
